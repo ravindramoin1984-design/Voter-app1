@@ -3,276 +3,487 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>मतदार यादी व्यवस्थापन ॲप</title>
+    <title>मतदार यादी व स्लिप प्रणाली</title>
+    <!-- SheetJS for Excel/CSV parsing -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
-        body { font-family: 'Noto Sans Devanagari', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Noto Sans Devanagari', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* Custom subtle scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen pb-12">
+<body class="min-h-screen pb-16 text-slate-800 antialiased">
 
-    <!-- Header -->
-    <header class="bg-indigo-700 text-white shadow-md p-4 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
-            <h1 class="text-xl font-bold flex items-center gap-2">
-                <i class="fa-solid fa-users-rectangle"></i> मतदार यादी व्यवस्थापन ॲप
-            </h1>
-            <div class="flex gap-2 w-full sm:w-auto overflow-x-auto">
-                <button onclick="switchTab('search')" id="btn-search" class="px-4 py-2 bg-indigo-800 rounded-lg text-sm font-medium whitespace-nowrap transition shadow"><i class="fa-solid fa-search"></i> शोध व यादी</button>
-                <button onclick="switchTab('family')" id="btn-family" class="px-4 py-2 bg-indigo-900/60 rounded-lg text-sm font-medium whitespace-nowrap transition"><i class="fa-solid fa-house-user"></i> कुटुंबनिहाय</button>
-                <button onclick="switchTab('settings')" id="btn-settings" class="px-4 py-2 bg-indigo-900/60 rounded-lg text-sm font-medium whitespace-nowrap transition"><i class="fa-solid fa-gear"></i> सेटिंग्ज व प्रचार</button>
+    <!-- Toast Notification Box -->
+    <div id="toast-box" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 transform transition-all duration-300 translate-y-24 opacity-0 pointer-events-none w-[90%] max-w-sm">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 text-sm font-medium border border-slate-700">
+            <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base shrink-0"></i>
+            <span id="toast-message">संदेश</span>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 backdrop-blur-xs hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div class="flex items-center gap-3 text-rose-600">
+                <div class="bg-rose-100 p-2.5 rounded-xl">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">डेटा पुसण्याची खात्री करा</h3>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">तुम्हाला खरोखर जतन केलेला सर्व मतदार डेटा पुसायचा आहे का? यानंतर तुम्ही नवीन एक्सेल फाईल अपलोड करू शकता.</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfirmModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition">रद्द करा</button>
+                <button id="confirm-yes-btn" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold shadow-sm transition">होय, डेटा पुसा</button>
             </div>
         </div>
-    </header>
+    </div>
 
-    <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+    <!-- Main Mobile-First Wrapper -->
+    <div class="max-w-3xl mx-auto px-3.5 sm:px-6 pt-3.5 space-y-4">
 
-        <!-- Upload & Status Card -->
-        <div class="bg-white rounded-xl shadow p-5 border border-indigo-100">
-            <div class="flex flex-col md:flex-row items-center justify-between gap-4">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-800">डेटा व्यवस्थापन</h2>
-                    <p class="text-sm text-gray-500" id="data-status">कोणतीही एक्सेल फाईल अपलोड केलेली नाही. (नमुना डेटा वापरा)</p>
+        <!-- TOP VIBRANT ORANGE HEADER CARD (Matching Image 1) -->
+        <header class="bg-gradient-to-br from-orange-500 via-orange-500 to-amber-600 text-white rounded-3xl p-5 shadow-lg shadow-orange-500/20 relative overflow-hidden">
+            <!-- Subtle decorative circle -->
+            <div class="absolute -right-8 -top-8 w-36 h-36 bg-white/10 rounded-full pointer-events-none"></div>
+            
+            <div class="flex items-start gap-3.5 relative z-10">
+                <!-- Left White Ballot/Check Icon Box -->
+                <div class="bg-white/20 backdrop-blur-xs p-3 rounded-2xl shrink-0 border border-white/25 shadow-inner mt-0.5">
+                    <div class="bg-white text-orange-600 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm">
+                        <i class="fa-solid fa-check-to-slot text-xl"></i>
+                    </div>
                 </div>
-                <div class="flex flex-wrap gap-2 w-full md:w-auto">
-                    <label class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow transition flex items-center gap-2 justify-center flex-1 md:flex-none">
-                        <i class="fa-solid fa-file-excel"></i> Excel अपलोड करा
-                        <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
-                    </label>
-                    <button onclick="loadSampleData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow transition flex items-center gap-2 justify-center flex-1 md:flex-none">
-                        <i class="fa-solid fa-database"></i> नमुना डेटा लोड करा
+                <div class="space-y-1">
+                    <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight leading-snug">मतदार यादी व स्लिप प्रणाली</h1>
+                    <p class="text-xs sm:text-sm text-orange-50 font-medium leading-relaxed">कुटुंब प्रमुख ओळख व स्मार्ट WhatsApp/SMS मेसेजिंग</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons Inside Header Card -->
+            <div class="mt-5 flex flex-wrap items-center gap-2.5 relative z-10">
+                <button onclick="switchTab('settings')" id="header-settings-btn" class="bg-white/20 hover:bg-white/30 active:bg-white/35 text-white border border-white/30 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center gap-2 backdrop-blur-xs">
+                    <i class="fa-solid fa-pen-to-square"></i> मेसेज सेटिंग्ज
+                </button>
+
+                <label class="cursor-pointer bg-white hover:bg-orange-50 active:bg-orange-100 text-orange-600 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition flex items-center gap-2">
+                    <i class="fa-solid fa-file-excel text-base"></i> एक्सेल अपलोड
+                    <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                </label>
+
+                <div class="ml-auto flex items-center gap-1.5">
+                    <button onclick="loadSampleData(true)" class="bg-black/15 hover:bg-black/25 text-white/90 px-3 py-2 rounded-xl text-xs font-medium transition" title="नमुना डेटा लोड करा">
+                        <i class="fa-solid fa-database"></i> नमुना
                     </button>
-                    <button onclick="clearData()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-lg text-sm font-medium transition" title="डेटा रिसेट करा">
+                    <button onclick="confirmClearData()" class="bg-black/15 hover:bg-rose-600/80 text-white/90 px-3 py-2 rounded-xl text-xs font-medium transition" title="डेटा पुसा">
                         <i class="fa-solid fa-trash-can"></i>
                     </button>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <!-- TAB 1: Search & Filters -->
-        <div id="tab-search" class="space-y-4">
-            <!-- Filter Box -->
-            <div class="bg-white rounded-xl shadow p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">शोध (नाव / EPIC / मोबाईल)</label>
-                    <input type="text" id="search-input" oninput="filterVoters()" placeholder="नाव किंवा नंबर टाка..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+        <!-- 2x2 SUMMARY STAT CARDS GRID (Matching Image 1) -->
+        <section class="grid grid-cols-2 gap-3 sm:gap-4">
+            <!-- Card 1: Total Voters -->
+            <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-users text-xl"></i>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">वार्ड क्र. फिल्टर</label>
-                    <select id="filter-ward" onchange="filterVoters()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white outline-none">
-                        <option value="">सर्व वार्ड</option>
-                    </select>
+                    <p class="text-xs font-semibold text-slate-500 leading-tight">एकूण<br>मतदार</p>
+                    <p id="stat-total" class="text-2xl font-extrabold text-slate-900 mt-0.5">0</p>
+                </div>
+            </div>
+
+            <!-- Card 2: Total Families -->
+            <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-house-user text-xl"></i>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">ग्रुप क्र. फिल्टर</label>
-                    <select id="filter-group" onchange="filterVoters()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white outline-none">
-                        <option value="">सर्व ग्रुप</option>
-                    </select>
+                    <p class="text-xs font-semibold text-slate-500 leading-tight">एकूण कुटुंबे<br>(प्रमुख)</p>
+                    <p id="stat-families" class="text-2xl font-extrabold text-slate-900 mt-0.5">0</p>
+                </div>
+            </div>
+
+            <!-- Card 3: Male / Female -->
+            <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-venus-mars text-xl"></i>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">जात प्रवर्ग फिल्टर</label>
-                    <select id="filter-caste" onchange="filterVoters()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white outline-none">
-                        <option value="">सर्व प्रवर्ग</option>
-                    </select>
+                    <p class="text-xs font-semibold text-slate-500 leading-tight">पुरुष / स्त्री</p>
+                    <p id="stat-gender" class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-0.5">0 / 0</p>
                 </div>
-                <div class="flex items-end">
-                    <button onclick="resetFilters()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-medium transition">
-                        फिल्टर रिसेट करा
+            </div>
+
+            <!-- Card 4: Available for Message -->
+            <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <i class="fa-brands fa-whatsapp text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 leading-tight">मेसेजसाठी<br>उपलब्ध</p>
+                    <p id="stat-reachable" class="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-0.5 leading-none">0 <span class="text-sm font-bold">(0%)</span></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- NAVIGATION TABS -->
+        <nav class="bg-white p-1.5 rounded-2xl shadow-xs border border-slate-200/80 grid grid-cols-3 gap-1.5">
+            <button onclick="switchTab('search')" id="btn-search" class="py-2.5 px-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 bg-orange-600 text-white shadow-xs">
+                <i class="fa-solid fa-address-card"></i> मतदार यादी
+            </button>
+            <button onclick="switchTab('family')" id="btn-family" class="py-2.5 px-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5 text-slate-600 hover:bg-slate-100">
+                <i class="fa-solid fa-people-roof"></i> कुटुंबनिहाय
+            </button>
+            <button onclick="switchTab('settings')" id="btn-settings" class="py-2.5 px-2 rounded-xl text-xs sm:text-sm font-semibold transition flex items-center justify-center gap-1.5 text-slate-600 hover:bg-slate-100">
+                <i class="fa-solid fa-bullhorn"></i> प्रचार सेटिंग
+            </button>
+        </nav>
+
+        <!-- TAB 1: SEARCH, FILTERS & ATTRACTIVE VOTER CARDS (Matching Image 3) -->
+        <section id="tab-search" class="space-y-3.5">
+            <!-- Search & Filters Box -->
+            <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 space-y-3">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
+                    <input type="text" id="search-input" oninput="filterVoters()" placeholder="नाव, EPIC नं., मोबाईल किंवा मतदार क्र. शोधा..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition">
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1">वार्ड क्र.</label>
+                        <select id="filter-ward" onchange="filterVoters()" class="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-orange-500">
+                            <option value="">सर्व वार्ड</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1">ग्रुप क्र.</label>
+                        <select id="filter-group" onchange="filterVoters()" class="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-orange-500">
+                            <option value="">सर्व ग्रुप</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-500 mb-1">जात प्रवर्ग</label>
+                        <select id="filter-caste" onchange="filterVoters()" class="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-orange-500">
+                            <option value="">सर्व प्रवर्ग</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                    <p id="showing-count-text" class="text-xs font-semibold text-slate-500">दाखवत आहे: 0 मतदार (एकूण 0 पैकी)</p>
+                    <button onclick="resetFilters()" class="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1">
+                        <i class="fa-solid fa-rotate-left"></i> फिल्टर रिसेट
                     </button>
                 </div>
             </div>
 
-            <!-- Voters List Table -->
-            <div class="bg-white rounded-xl shadow overflow-hidden border border-gray-200">
-                <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                    <h3 class="font-semibold text-gray-700">मतदार यादी (<span id="voter-count">0</span>)</h3>
-                    <span class="text-xs text-gray-500">माहिती बदलण्यासाठी 'Edit' बटण वापरा</span>
-                </div>
-                <div class="overflow-x-auto max-h-[600px]">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-gray-100 text-gray-700 text-xs uppercase sticky top-0 z-10">
-                            <tr>
-                                <th class="p-3">वार्ड / मतदार क्र.</th>
-                                <th class="p-3">नाव व घर क्र.</th>
-                                <th class="p-3">वय / लिंग</th>
-                                <th class="p-3">EPIC नंबर</th>
-                                <th class="p-3">प्रवर्ग / ग्रुप</th>
-                                <th class="p-3">मोबाईल</th>
-                                <th class="p-3 text-center">कृती (Actions)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="voters-table-body" class="divide-y divide-gray-200 text-sm">
-                            <tr><td colspan="7" class="p-6 text-center text-gray-400">कृपया एक्सेल फाईल अपलोड करा किंवा नमुना डेटा लोड करा.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+            <!-- Voter Cards List Container -->
+            <div id="voters-cards-container" class="space-y-3.5">
+                <!-- Cards rendered dynamically via JS -->
             </div>
-        </div>
+        </section>
 
-        <!-- TAB 2: Family View -->
-        <div id="tab-family" class="hidden space-y-4">
-            <div class="bg-white rounded-xl shadow p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
-                <div class="w-full sm:w-1/3">
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">कुटुंब निवडा (कुटुंब क्र.)</label>
-                    <select id="family-select" onchange="renderFamilyDetails()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white outline-none">
-                        <option value="">प्रथम कुटुंब निवडा...</option>
+        <!-- TAB 2: FAMILY VIEW -->
+        <section id="tab-family" class="hidden space-y-3.5">
+            <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/80 space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">कुटुंब निवडा (कुटुंब क्र. आणि कुटुंब प्रमुखानुसार)</label>
+                    <select id="family-select" onchange="renderFamilyDetails()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-orange-500 outline-none">
+                        <option value="">कुटुंब निवडा...</option>
                     </select>
                 </div>
-                <div class="text-sm text-gray-500" id="family-info-text">कुटुंबातील पहिली व्यक्ती कुटुंबप्रमुख म्हणून मानली जाईल.</div>
+                <div class="bg-amber-50 border border-amber-200/80 text-amber-900 px-3.5 py-2.5 rounded-xl text-xs flex items-start gap-2.5">
+                    <i class="fa-solid fa-crown text-amber-600 mt-0.5"></i>
+                    <p>एका कुटुंब क्र. मधील पहिली व्यक्ती <strong>कुटुंब प्रमुख</strong> मानली जाते. एका क्लिकवर संपूर्ण कुटुंबाची स्लिप प्रमुखाच्या WhatsApp वर पाठवता येते.</p>
+                </div>
             </div>
 
-            <div id="family-card-container" class="space-y-4">
-                <!-- Family View Content -->
-                <div class="bg-white rounded-xl shadow p-6 text-center text-gray-400">कृपया वरून एखादे कुटुंब निवडा.</div>
+            <div id="family-card-container" class="space-y-3.5">
+                <div class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200/80 text-sm">
+                    कृपया वरील यादीतून एखादे कुटुंब निवडा.
+                </div>
             </div>
-        </div>
+        </section>
 
-        <!-- TAB 3: Settings & Campaign Material -->
-        <div id="tab-settings" class="hidden space-y-4">
-            <div class="bg-white rounded-xl shadow p-6 max-w-2xl mx-auto space-y-4">
-                <h3 class="text-lg font-bold text-gray-800 border-b pb-2"><i class="fa-solid fa-bullhorn text-indigo-600"></i> डिजिटल प्रचार साहित्य सेटिंग</h3>
-                <p class="text-sm text-gray-600">येथे दिलेले प्रचार साहित्य व्हॉट्सॲपवर स्लिप पाठवताना मेसेजच्या शेवटी आपोआप जोडले जाईल.</p>
-                
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">उमेदवाराचे नाव व चिन्ह</label>
-                    <input type="text" id="camp-candidate" placeholder="उदा. उमेदवार: राहुल पाटील (कमळ चिन्ह)" class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+        <!-- TAB 3: SETTINGS & CAMPAIGN MATERIAL -->
+        <section id="tab-settings" class="hidden space-y-4">
+            <div class="bg-white rounded-2xl shadow-xs p-5 space-y-4 border border-slate-200/80">
+                <div class="border-b border-slate-100 pb-3 flex items-center gap-3">
+                    <div class="bg-orange-100 text-orange-600 p-2.5 rounded-xl">
+                        <i class="fa-solid fa-bullhorn text-lg"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">मेसेज व डिजिटल प्रचार साहित्य सेटिंग्ज</h3>
+                        <p class="text-xs text-slate-500">WhatsApp व SMS स्लिप पाठवताना खालील प्रचार संदेश जोडला जाईल.</p>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">प्रचाराचा संदेश / घोषणा</label>
-                    <textarea id="camp-message" rows="3" placeholder="उदा. आपल्या वार्डच्या विकासाकामी आपल्या लाडक्या उमेदवाराला बहुमताने विजयी करा!" class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                <div class="flex items-center justify-between bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                    <div>
+                        <p class="text-sm font-bold text-slate-800">स्लिपसोबत प्रचार साहित्य पाठवा</p>
+                        <p class="text-xs text-slate-500">गरजेनुसार प्रचार मजकूर चालू किंवा बंद करा</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="camp-enabled" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">बॅनर / फोटो लिंक (URL)</label>
-                    <input type="text" id="camp-image" placeholder="https://example.com/banner.jpg" class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                <div class="space-y-3.5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">उमेदवाराचे नाव व निवडणूक चिन्ह</label>
+                        <input type="text" id="camp-candidate" placeholder="उदा. उमेदवार: श्री. राजेश शंकरराव पाटील (निशाणी: कपबशी)" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">प्रचाराचा संदेश / आवाहन</label>
+                        <textarea id="camp-message" rows="3" placeholder="उदा. आपल्या प्रभागाच्या सर्वांगीण विकासासाठी आपल्या हक्काच्या उमेदवाराला प्रचंड बहुमताने विजयी करा!" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">डिजिटल प्रचार पत्रक / फोटो लिंक (URL)</label>
+                        <input type="url" id="camp-image" placeholder="https://example.com/banner.jpg" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
+                    </div>
                 </div>
 
-                <button onclick="saveCampaignSettings()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-medium shadow transition">
-                    सेटिंग जतन करा
+                <div class="bg-blue-50 border border-blue-200/80 rounded-xl p-3 text-xs text-blue-800 flex items-start gap-2">
+                    <i class="fa-solid fa-shield-halved mt-0.5 text-blue-600"></i>
+                    <span><strong>गोपनीयता सुरक्षा:</strong> WhatsApp किंवा SMS वर स्लिप पाठवताना <u>कुटुंब क्र.</u> आणि <u>ग्रुप क्र.</u> हे गोपनीय कॉलम मेसेजमध्ये पाठवले जात नाहीत.</span>
+                </div>
+
+                <button onclick="saveCampaignSettings()" class="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold shadow-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-floppy-disk"></i> सेटिंग्ज जतन करा
                 </button>
             </div>
-        </div>
+        </section>
 
-    </main>
+    </div>
 
-    <!-- Edit Modal -->
-    <div id="edit-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 class="text-lg font-bold text-gray-800 border-b pb-2">मतदार माहिती एडिट करा</h3>
+    <!-- EDIT VOTER MODAL -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4 z-50 overflow-y-auto">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-6 space-y-4 my-auto">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-user-pen text-orange-600"></i> मतदार माहिती एडिट करा
+                </h3>
+                <button onclick="closeEditModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
             <input type="hidden" id="edit-index">
-            <div class="space-y-3">
+            <div class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">पूर्ण नाव</label>
-                    <input type="text" id="edit-name" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                    <label class="block text-xs font-bold text-slate-600 mb-1">पूर्ण नाव</label>
+                    <input type="text" id="edit-name" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                 </div>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 gap-2.5">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">वार्ड क्र.</label>
-                        <input type="text" id="edit-ward" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">वार्ड क्र.</label>
+                        <input type="text" id="edit-ward" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">मतदार क्र. (Serial)</label>
-                        <input type="text" id="edit-voter-no" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">मतदार क्र. (Serial)</label>
+                        <input type="text" id="edit-voter-no" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 gap-2.5">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">कुटुंब क्र.</label>
-                        <input type="text" id="edit-family-no" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">कुटुंब क्र.</label>
+                        <input type="text" id="edit-family-no" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">ग्रुप क्र.</label>
-                        <input type="text" id="edit-group" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">ग्रुप क्र.</label>
+                        <input type="text" id="edit-group" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">घर क्र.</label>
-                        <input type="text" id="edit-house" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">घर क्र.</label>
+                        <input type="text" id="edit-house" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">वय</label>
-                        <input type="text" id="edit-age" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">वय</label>
+                        <input type="text" id="edit-age" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">लिंग</label>
-                        <input type="text" id="edit-gender" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">लिंग</label>
+                        <select id="edit-gender" class="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
+                            <option value="पुरुष">पुरुष</option>
+                            <option value="स्त्री">स्त्री</option>
+                            <option value="इतर">इतर</option>
+                        </select>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 gap-2.5">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">EPIC नंबर</label>
-                        <input type="text" id="edit-epic" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">EPIC नं.</label>
+                        <input type="text" id="edit-epic" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1">जात प्रवर्ग</label>
-                        <input type="text" id="edit-caste" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">जात प्रवर्ग</label>
+                        <input type="text" id="edit-caste" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 mb-1">मोबाईल क्र.</label>
-                    <input type="text" id="edit-mobile" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+                    <label class="block text-xs font-bold text-slate-600 mb-1">स्वतःचा मोबाईल क्र.</label>
+                    <input type="tel" id="edit-mobile" placeholder="१० अंकी मोबाईल नंबर" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-orange-500">
                 </div>
             </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <button onclick="closeEditModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">रद्द करा</button>
-                <button onclick="saveEditedVoter()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium">बदल जतन करा</button>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button onclick="closeEditModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition">रद्द करा</button>
+                <button onclick="saveEditedVoter()" class="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-sm font-bold shadow-sm transition">बदल जतन करा</button>
             </div>
         </div>
     </div>
 
     <script>
         let votersData = [];
-        let campaignSettings = { candidate: '', message: '', image: '' };
+        let campaignSettings = {
+            enabled: true,
+            candidate: 'उमेदवार: श्री. राजेश शंकरराव पाटील (निशाणी: कपबशी)',
+            message: 'आपल्या प्रभागाच्या सर्वांगीण विकासासाठी आपल्या हक्काच्या उमेदवाराला प्रचंड बहुमताने विजयी करा!',
+            image: ''
+        };
+        window.familyMap = {};
+        window.headLookup = {};
 
-        // Load on startup from Local Storage
-        window.onload = function() {
-            const savedData = localStorage.getItem('voters_app_data');
-            const savedCamp = localStorage.getItem('voters_app_camp');
-            if (savedData) {
-                votersData = JSON.parse(savedData);
-                document.getElementById('data-status').innerText = `डेटा जतन केलेला आहे (${votersData.length} मतदार).`;
-                initApp();
+        // Toast Helper
+        function showToast(message, isError = false) {
+            const box = document.getElementById('toast-box');
+            const icon = document.getElementById('toast-icon');
+            const msg = document.getElementById('toast-message');
+            
+            msg.innerText = message;
+            icon.className = isError 
+                ? 'fa-solid fa-circle-exclamation text-rose-400 text-base shrink-0' 
+                : 'fa-solid fa-circle-check text-emerald-400 text-base shrink-0';
+            
+            box.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                box.classList.add('translate-y-24', 'opacity-0');
+            }, 3000);
+        }
+
+        // Confirm Clear Data Modal
+        function confirmClearData() {
+            if (votersData.length === 0) {
+                showToast('पुसण्यासाठी कोणताही डेटा उपलब्ध नाही.', true);
+                return;
             }
-            if (savedCamp) {
-                campaignSettings = JSON.parse(savedCamp);
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('confirm-yes-btn').onclick = function() {
+                localStorage.removeItem('voters_app_data_v2');
+                votersData = [];
+                initApp();
+                closeConfirmModal();
+                showToast('सर्व डेटा यशस्वीरित्या पुसला आहे!');
+            };
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Load from LocalStorage on Startup
+        window.onload = function() {
+            try {
+                const savedCamp = localStorage.getItem('voters_app_camp_v2');
+                if (savedCamp) {
+                    campaignSettings = JSON.parse(savedCamp);
+                }
+                document.getElementById('camp-enabled').checked = campaignSettings.enabled !== false;
                 document.getElementById('camp-candidate').value = campaignSettings.candidate || '';
                 document.getElementById('camp-message').value = campaignSettings.message || '';
                 document.getElementById('camp-image').value = campaignSettings.image || '';
+
+                const savedData = localStorage.getItem('voters_app_data_v2');
+                if (savedData) {
+                    votersData = JSON.parse(savedData);
+                    initApp();
+                } else {
+                    // Load rich sample data matching Image 1 stats (11 voters, 4 families, 6M/5F, 9 reachable = 82%)
+                    loadSampleData(false);
+                }
+            } catch (e) {
+                console.error(e);
+                loadSampleData(false);
             }
         };
 
         function saveDataToStorage() {
-            localStorage.setItem('voters_app_data', JSON.stringify(votersData));
+            try {
+                localStorage.setItem('voters_app_data_v2', JSON.stringify(votersData));
+            } catch (e) {
+                showToast('डेटा सेव्ह करताना त्रुटी आली.', true);
+            }
         }
 
         function saveCampaignSettings() {
             campaignSettings = {
-                candidate: document.getElementById('camp-candidate').value,
-                message: document.getElementById('camp-message').value,
-                image: document.getElementById('camp-image').value
+                enabled: document.getElementById('camp-enabled').checked,
+                candidate: document.getElementById('camp-candidate').value.trim(),
+                message: document.getElementById('camp-message').value.trim(),
+                image: document.getElementById('camp-image').value.trim()
             };
-            localStorage.setItem('voters_app_camp', JSON.stringify(campaignSettings));
-            alert('प्रचार सेटिंग यशस्वीरितя जतन केली!');
+            localStorage.setItem('voters_app_camp_v2', JSON.stringify(campaignSettings));
+            showToast('मेसेज व प्रचार सेटिंग्ज जतन केल्या!');
         }
 
-        function loadSampleData() {
+        // Sample Data (11 Voters, 4 Families, 6 Male / 5 Female, 9 Reachable = 82%)
+        function loadSampleData(notify = true) {
             votersData = [
-                { ward: '1', voterNo: '101', familyNo: 'F-101', groupNo: 'G-1', name: 'रमेश बापूराव पाटील', age: '48', gender: 'पुरुष', epic: 'ABC1234567', caste: 'मराठा', mobile: '9876543210', house: '12' },
-                { ward: '1', voterNo: '102', familyNo: 'F-101', groupNo: 'G-1', name: 'सुलोचना रमेश पाटील', age: '45', gender: 'स्त्री', epic: 'ABC1234568', caste: 'मराठा', mobile: '', house: '12' },
-                { ward: '1', voterNo: '103', familyNo: 'F-101', groupNo: 'G-1', name: 'राहुल रमेश पाटील', age: '22', gender: 'पुरुष', epic: 'ABC1234569', caste: 'मराठा', mobile: '9876543212', house: '12' },
-                { ward: '2', voterNo: '201', familyNo: 'F-102', groupNo: 'G-2', name: 'विठ्ठल गंगाराम शिंदे', age: '55', gender: 'पुरुष', epic: 'XYZ9876541', caste: 'धनगर', mobile: '9123456789', house: '45' },
-                { ward: '2', voterNo: '202', familyNo: 'F-102', groupNo: 'G-2', name: 'राधाबाई विठ्ठल शिंदे', age: '52', gender: 'स्त्री', epic: 'XYZ9876542', caste: 'धनगर', mobile: '', house: '45' }
+                // Family 101 (3 members - Head has mobile -> all 3 reachable)
+                { ward: '1', voterNo: '101', familyNo: '101', groupNo: 'G-1', name: 'राजेश शंकरराव पाटील', house: '12/A', age: '52', gender: 'पुरुष', epic: 'MH/14/089/124501', caste: 'मराठा', mobile: '9822012345' },
+                { ward: '1', voterNo: '102', familyNo: '101', groupNo: 'G-1', name: 'सुनीता राजेश पाटील', house: '12/A', age: '47', gender: 'स्त्री', epic: 'MH/14/089/124502', caste: 'मराठा', mobile: '' },
+                { ward: '1', voterNo: '103', familyNo: '101', groupNo: 'G-1', name: 'अमित राजेश पाटील', house: '12/A', age: '24', gender: 'पुरुष', epic: 'MH/14/089/124503', caste: 'मराठा', mobile: '9822012349' },
+                
+                // Family 102 (3 members - Head has mobile -> all 3 reachable)
+                { ward: '1', voterNo: '104', familyNo: '102', groupNo: 'G-1', name: 'विठ्ठल गंगाराम शिंदे', house: '15', age: '58', gender: 'पुरुष', epic: 'MH/14/089/124504', caste: 'धनगर', mobile: '9422156789' },
+                { ward: '1', voterNo: '105', familyNo: '102', groupNo: 'G-1', name: 'राधाबाई विठ्ठल शिंदे', house: '15', age: '53', gender: 'स्त्री', epic: 'MH/14/089/124505', caste: 'धनगर', mobile: '' },
+                { ward: '1', voterNo: '106', familyNo: '102', groupNo: 'G-1', name: 'प्रियांका विठ्ठल शिंदे', house: '15', age: '26', gender: 'स्त्री', epic: 'MH/14/089/124506', caste: 'धनगर', mobile: '' },
+
+                // Family 103 (3 members - Head has mobile -> all 3 reachable)
+                { ward: '2', voterNo: '201', familyNo: '103', groupNo: 'G-2', name: 'संजय महादेव कांबळे', house: '42', age: '44', gender: 'पुरुष', epic: 'MH/14/089/224501', caste: 'बौद्ध', mobile: '9923456780' },
+                { ward: '2', voterNo: '202', familyNo: '103', groupNo: 'G-2', name: 'सविता संजय कांबळे', house: '42', age: '39', gender: 'स्त्री', epic: 'MH/14/089/224502', caste: 'बौद्ध', mobile: '' },
+                { ward: '2', voterNo: '203', familyNo: '103', groupNo: 'G-2', name: 'रोहन संजय कांबळे', house: '42', age: '21', gender: 'पुरुष', epic: 'MH/14/089/224503', caste: 'बौद्ध', mobile: '9923456785' },
+
+                // Family 104 (2 members - Neither has mobile -> 0 reachable; Total reachable = 9/11 = 82%)
+                { ward: '2', voterNo: '204', familyNo: '104', groupNo: 'G-2', name: 'बाळासाहेब दत्तात्रय कुलकर्णी', house: '50', age: '64', gender: 'पुरुष', epic: 'MH/14/089/224504', caste: 'ब्राह्मण', mobile: '' },
+                { ward: '2', voterNo: '205', familyNo: '104', groupNo: 'G-2', name: 'मंगल बाळासाहेब कुलकर्णी', house: '50', age: '60', gender: 'स्त्री', epic: 'MH/14/089/224505', caste: 'ब्राह्मण', mobile: '' }
             ];
             saveDataToStorage();
-            document.getElementById('data-status').innerText = `नमुना डेटा यशस्वीरित्या लोड झाला (${votersData.length} मतदार).`;
             initApp();
+            if (notify) showToast('नमुना डेटा लोड झाला!');
         }
 
+        // Excel / CSV File Upload
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -284,41 +495,94 @@
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     const json = XLSX.utils.sheet_to_json(worksheet);
-                    
-                    votersData = json.map((row, index) => ({
-                        ward: String(row['वार्ड क्र'] || row['Ward'] || '1'),
-                        voterNo: String(row['मतदार क्र'] || row['Voter No'] || (index + 1)),
-                        familyNo: String(row['कुटुंब क्र'] || row['Family No'] || ('F-' + index)),
-                        groupNo: String(row['ग्रुप क्र'] || row['Group No'] || 'G-1'),
-                        name: String(row['नाव'] || row['Name'] || ''),
-                        age: String(row['वय'] || row['Age'] || ''),
-                        gender: String(row['लिंग'] || row['Gender'] || ''),
-                        epic: String(row['EPIC नंबर'] || row['EPIC'] || ''),
-                        caste: String(row['जात प्रवर्ग'] || row['Caste'] || ''),
-                        mobile: String(row['मोबाईल क्र'] || row['Mobile'] || ''),
-                        house: String(row['घर क्र'] || row['House No'] || '')
-                    }));
+
+                    if (json.length === 0) {
+                        showToast('अपलोड केलेल्या फाईलमध्ये डेटा आढळला नाही.', true);
+                        return;
+                    }
+
+                    votersData = json.map((row, index) => {
+                        const getCol = (keys, fallback = '') => {
+                            for (let k of keys) {
+                                if (row[k] !== undefined && row[k] !== null) return String(row[k]).trim();
+                            }
+                            return fallback;
+                        };
+
+                        return {
+                            ward: getCol(['वार्ड क्र.', 'वार्ड क्र', 'वॉर्ड क्र.', 'वॉर्ड क्र', 'Ward', 'Ward No'], '1'),
+                            voterNo: getCol(['मतदार क्र.', 'मतदार क्र', 'Voter No', 'Sr No', 'अनु क्र'], String(index + 1)),
+                            familyNo: getCol(['कुटुंब क्र.', 'कुटुंब क्र', 'Family No', 'Family'], String(100 + index)),
+                            groupNo: getCol(['ग्रुप क्र.', 'ग्रुप क्र', 'Group No', 'Group'], 'G-1'),
+                            name: getCol(['नाव', 'मतदाराचे नाव', 'पूर्ण नाव', 'Name', 'Voter Name'], ''),
+                            house: getCol(['घर क्र.', 'घर क्र', 'House No', 'House'], ''),
+                            age: getCol(['वय', 'Age'], ''),
+                            gender: getCol(['लिंग', 'Gender', 'Sex'], ''),
+                            epic: getCol(['EPIC नंबर', 'EPIC नं.', 'EPIC नं', 'EPIC No', 'EPIC', 'ओळखपत्र क्र'], ''),
+                            caste: getCol(['जात प्रवर्ग', 'जात', 'प्रवर्ग', 'Caste', 'Category'], ''),
+                            mobile: getCol(['मोबाईल क्र.', 'मोबाईल क्र', 'मोबाईल', 'Mobile', 'Mobile No'], '')
+                        };
+                    });
 
                     saveDataToStorage();
-                    document.getElementById('data-status').innerText = `फाईल अपलोड यशस्वी (${votersData.length} मतदार).`;
                     initApp();
+                    showToast(`${votersData.length} मतदारांचा डेटा यशस्वीरित्या अपलोड झाला!`);
                 } catch (err) {
-                    alert('फायली वाचताना त्रुटी आली. कृपया योग्य एक्सेल फाईल अपलोड करा.');
+                    console.error(err);
+                    showToast('फाईल वाचताना त्रुटी आली. कृपया योग्य Excel फाईल निवडा.', true);
                 }
             };
             reader.readAsArrayBuffer(file);
+            event.target.value = '';
         }
 
-        function clearData() {
-            if (confirm('तुम्हाला सर्व डेटा डिलीट करायचा आहे का?')) {
-                localStorage.removeItem('voters_app_data');
-                votersData = [];
-                document.getElementById('data-status').innerText = 'डेटा रिकामा केला आहे.';
-                initApp();
-            }
+        // Build Family Head Map & Recalculate Dashboard Stats
+        function buildFamilyAndStats() {
+            const families = {};
+            const headByFamily = {};
+
+            votersData.forEach((v, idx) => {
+                const fKey = v.familyNo || `unassigned_${idx}`;
+                if (!families[fKey]) {
+                    families[fKey] = { head: v, headIndex: idx, members: [] };
+                    headByFamily[fKey] = v;
+                }
+                families[fKey].members.push({ ...v, originalIndex: idx });
+            });
+
+            window.familyMap = families;
+            window.headLookup = headByFamily;
+
+            // Calculate Stats for Dashboard (Image 1)
+            const total = votersData.length;
+            const familyCount = Object.keys(families).length;
+            let maleCount = 0;
+            let femaleCount = 0;
+            let reachableCount = 0;
+
+            votersData.forEach(v => {
+                const g = (v.gender || '').trim();
+                if (g === 'पुरुष' || g.toLowerCase() === 'male' || g.toLowerCase() === 'm') maleCount++;
+                else if (g === 'स्त्री' || g === 'महिला' || g.toLowerCase() === 'female' || g.toLowerCase() === 'f') femaleCount++;
+
+                const head = headByFamily[v.familyNo];
+                const hasOwnMob = v.mobile && v.mobile.replace(/\D/g, '').length >= 10;
+                const hasHeadMob = head && head.mobile && head.mobile.replace(/\D/g, '').length >= 10;
+                if (hasOwnMob || hasHeadMob) {
+                    reachableCount++;
+                }
+            });
+
+            const pct = total > 0 ? Math.round((reachableCount / total) * 100) : 0;
+
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-families').innerText = familyCount;
+            document.getElementById('stat-gender').innerText = `${maleCount} / ${femaleCount}`;
+            document.getElementById('stat-reachable').innerHTML = `${reachableCount} <span class="text-sm font-bold">(${pct}%)</span>`;
         }
 
         function initApp() {
+            buildFamilyAndStats();
             populateDropdowns();
             filterVoters();
             populateFamilyDropdown();
@@ -336,27 +600,34 @@
 
         function fillSelect(id, items, defaultText) {
             const sel = document.getElementById(id);
+            const prev = sel.value;
             sel.innerHTML = `<option value="">${defaultText}</option>`;
             items.forEach(item => {
                 sel.innerHTML += `<option value="${item}">${item}</option>`;
             });
+            if (items.includes(prev)) sel.value = prev;
         }
 
         function filterVoters() {
-            const query = document.getElementById('search-input').value.toLowerCase();
+            const query = document.getElementById('search-input').value.toLowerCase().trim();
             const ward = document.getElementById('filter-ward').value;
             const group = document.getElementById('filter-group').value;
             const caste = document.getElementById('filter-caste').value;
 
             const filtered = votersData.filter(v => {
-                const matchQuery = !query || v.name.toLowerCase().includes(query) || v.epic.toLowerCase().includes(query) || v.mobile.includes(query);
+                const matchQuery = !query || 
+                    v.name.toLowerCase().includes(query) || 
+                    v.epic.toLowerCase().includes(query) || 
+                    v.mobile.includes(query) ||
+                    v.voterNo.toLowerCase().includes(query);
                 const matchWard = !ward || v.ward === ward;
                 const matchGroup = !group || v.groupNo === group;
                 const matchCaste = !caste || v.caste === caste;
                 return matchQuery && matchWard && matchGroup && matchCaste;
             });
 
-            renderTable(filtered);
+            document.getElementById('showing-count-text').innerText = `दाखवत आहे: ${filtered.length} मतदार (एकूण ${votersData.length} पैकी)`;
+            renderVoterCards(filtered);
         }
 
         function resetFilters() {
@@ -365,242 +636,345 @@
             document.getElementById('filter-group').value = '';
             document.getElementById('filter-caste').value = '';
             filterVoters();
+            showToast('फिल्टर रिसेट केले.');
         }
 
-        function renderTable(data) {
-            const tbody = document.getElementById('voters-table-body');
-            document.getElementById('voter-count').innerText = data.length;
+        // ATTRACTIVE MOBILE VOTER CARDS (Matching Image 3)
+        function renderVoterCards(data) {
+            const container = document.getElementById('voters-cards-container');
+            
             if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-gray-400">कोणतीही माहिती उपलब्ध नाही.</td></tr>`;
+                container.innerHTML = `
+                    <div class="bg-white rounded-3xl p-8 text-center text-slate-400 border border-slate-200/80 shadow-xs">
+                        <i class="fa-solid fa-user-slash text-3xl mb-2 text-slate-300"></i>
+                        <p class="text-sm font-medium">कोणताही मतदार आढळला नाही.</p>
+                    </div>`;
                 return;
             }
 
             let html = '';
-            data.forEach((v, index) => {
+            data.forEach(v => {
                 const globalIndex = votersData.indexOf(v);
+                const familyObj = window.familyMap[v.familyNo];
+                const isHead = familyObj && familyObj.headIndex === globalIndex;
+                const head = familyObj ? familyObj.head : null;
+
+                // Determine Mobile Status Box Styling & Text
+                let mobileBannerHtml = '';
+                const hasOwnMob = v.mobile && v.mobile.trim() !== '';
+                const hasHeadMob = head && head.mobile && head.mobile.trim() !== '';
+
+                if (hasOwnMob) {
+                    mobileBannerHtml = `
+                        <div class="bg-emerald-50/90 border border-emerald-200/80 text-emerald-900 rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 text-xs sm:text-sm font-bold truncate">
+                                <i class="fa-solid fa-mobile-screen-button text-emerald-600 text-base shrink-0"></i>
+                                <span class="truncate">स्वतःचा मोबाईल: ${v.mobile}</span>
+                            </div>
+                            <button onclick="openEditModal(${globalIndex})" class="w-8 h-8 rounded-xl bg-white/80 hover:bg-white text-emerald-700 flex items-center justify-center shadow-2xs shrink-0 transition" title="माहिती एडिट करा">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                        </div>`;
+                } else if (!isHead && hasHeadMob) {
+                    mobileBannerHtml = `
+                        <div class="bg-amber-50/90 border border-amber-200/80 text-amber-900 rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 text-xs sm:text-sm font-bold truncate">
+                                <i class="fa-solid fa-crown text-amber-600 text-sm shrink-0"></i>
+                                <span class="truncate">कुटुंब प्रमुख: ${head.mobile}</span>
+                            </div>
+                            <button onclick="openEditModal(${globalIndex})" class="w-8 h-8 rounded-xl bg-white/80 hover:bg-white text-amber-700 flex items-center justify-center shadow-2xs shrink-0 transition" title="मोबाईल नंबर जोडा / एडिट करा">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                        </div>`;
+                } else {
+                    mobileBannerHtml = `
+                        <div class="bg-slate-100 border border-slate-200/80 text-slate-500 rounded-2xl px-3.5 py-2.5 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 text-xs sm:text-sm font-semibold">
+                                <i class="fa-solid fa-phone-slash text-slate-400"></i>
+                                <span>मोबाईल उपलब्ध नाही</span>
+                            </div>
+                            <button onclick="openEditModal(${globalIndex})" class="w-8 h-8 rounded-xl bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center shadow-2xs shrink-0 transition" title="मोबाईल नंबर जोडा / एडिट करा">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                        </div>`;
+                }
+
                 html += `
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="p-3">W: ${v.ward} <br><span class="text-xs text-gray-500">Sr: ${v.voterNo}</span></td>
-                        <td class="p-3 font-medium text-gray-800">${v.name}<br><span class="text-xs text-gray-500">घर क्र: ${v.house}</span></td>
-                        <td class="p-3">${v.age} / ${v.gender}</td>
-                        <td class="p-3 font-mono text-xs text-indigo-600">${v.epic}</td>
-                        <td class="p-3"><span class="px-2 py-1 bg-gray-100 rounded text-xs">${v.caste || '-'}</span><br><span class="text-xs text-gray-500">Grp: ${v.groupNo}</span></td>
-                        <td class="p-3">${v.mobile ? '<i class="fa-solid fa-phone text-emerald-600"></i> ' + v.mobile : '<span class="text-gray-400">न नाही</span>'}</td>
-                        <td class="p-3 text-center space-x-2">
-                            <button onclick="openEditModal(${globalIndex})" class="text-indigo-600 hover:text-indigo-800 p-1" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
-                            <button onclick="sendSingleSlip(${globalIndex})" class="text-emerald-600 hover:text-emerald-800 p-1" title="WhatsApp"><i class="fa-brands fa-whatsapp text-lg"></i></button>
-                        </td>
-                    </tr>
-                `;
+                <article class="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border ${isHead ? 'border-amber-300 ring-1 ring-amber-200/50' : 'border-slate-200/90'} space-y-3.5 transition">
+                    <!-- Top Badges Row -->
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">वार्ड: ${v.ward || '-'}</span>
+                            <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">मतदार क्र: ${v.voterNo || '-'}</span>
+                            <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">कुटुंब क्र: ${v.familyNo || '-'}</span>
+                            <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">घर क्र: ${v.house || '-'}</span>
+                            <span class="bg-slate-100 text-slate-600 text-xs font-semibold px-2.5 py-1 rounded-lg">ग्रुप: ${v.groupNo || '-'}</span>
+                        </div>
+                        ${isHead ? `
+                            <span class="bg-amber-50 border border-amber-300 text-amber-800 text-xs font-extrabold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                                <i class="fa-solid fa-crown text-amber-500"></i> कुटुंब प्रमुख
+                            </span>` : ''}
+                    </div>
+
+                    <!-- Voter Full Name -->
+                    <h3 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">${v.name || 'नाव उपलब्ध नाही'}</h3>
+
+                    <!-- Inner Info Card (EPIC, Age/Gender, Caste) -->
+                    <div class="bg-slate-50/90 border border-slate-100 rounded-2xl p-3.5 grid grid-cols-2 gap-y-2.5 gap-x-3">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400">EPIC नं:</p>
+                            <p class="text-sm font-extrabold font-mono text-slate-800 tracking-wide mt-0.5">${v.epic || '-'}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs font-medium text-slate-400">वय / लिंग:</p>
+                            <p class="text-sm font-extrabold text-slate-800 mt-0.5">${v.age || '-'} / ${v.gender || '-'}</p>
+                        </div>
+                        <div class="col-span-2 pt-1 border-t border-slate-200/60 flex items-center gap-1.5">
+                            <span class="text-xs font-medium text-slate-400">जात प्रवर्ग:</span>
+                            <span class="text-xs sm:text-sm font-extrabold text-slate-800">${v.caste || '-'}</span>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Status Banner with Edit Pencil -->
+                    ${mobileBannerHtml}
+
+                    <!-- Dual Action Buttons (WhatsApp & SMS) -->
+                    <div class="grid grid-cols-2 gap-2.5 pt-0.5">
+                        <button onclick="sendSingleSlip(${globalIndex}, 'whatsapp')" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white py-3 px-3 rounded-2xl text-sm font-bold shadow-xs transition flex items-center justify-center gap-2">
+                            <i class="fa-brands fa-whatsapp text-lg"></i> WhatsApp पाठवा
+                        </button>
+                        <button onclick="sendSingleSlip(${globalIndex}, 'sms')" class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white py-3 px-3 rounded-2xl text-sm font-bold shadow-xs transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-comment-sms text-lg"></i> SMS पाठवा
+                        </button>
+                    </div>
+                </article>`;
             });
-            tbody.innerHTML = html;
+
+            container.innerHTML = html;
         }
 
-        // Family Grouping Logic
+        // FAMILY VIEW LOGIC
         function populateFamilyDropdown() {
-            const families = {};
-            votersData.forEach((v, idx) => {
-                if (!families[v.familyNo]) {
-                    families[v.familyNo] = { head: v, members: [] };
-                }
-                families[v.familyNo].members.push({ ...v, originalIndex: idx });
-            });
-
             const sel = document.getElementById('family-select');
-            sel.innerHTML = `<option value="">कुटुंब निवडा (${Object.keys(families).length} कुटुंबे)...</option>`;
-            for (let fNo in families) {
-                const headName = families[fNo].head.name;
-                sel.innerHTML += `<option value="${fNo}">कुटुंब क्र. ${fNo} (प्रमुख: ${headName})</option>`;
-            }
-            window.familyMap = families;
+            const keys = Object.keys(window.familyMap);
+            sel.innerHTML = `<option value="">कुटुंब निवडा (एकूण ${keys.length} कुटुंबे)...</option>`;
+            keys.forEach(fNo => {
+                const fam = window.familyMap[fNo];
+                sel.innerHTML += `<option value="${fNo}">कुटुंब क्र. ${fNo} — प्रमुख: ${fam.head.name} (${fam.members.length} सदस्य)</option>`;
+            });
         }
 
         function renderFamilyDetails() {
             const fNo = document.getElementById('family-select').value;
             const container = document.getElementById('family-card-container');
+
             if (!fNo || !window.familyMap[fNo]) {
-                container.innerHTML = `<div class="bg-white rounded-xl shadow p-6 text-center text-gray-400">कृपया वरून एखादे कुटुंब निवडा.</div>`;
+                container.innerHTML = `<div class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-slate-200/80 text-sm">कृपया वरील यादीतून एखादे कुटुंब निवडा.</div>`;
                 return;
             }
 
             const family = window.familyMap[fNo];
-            const head = family.members[0]; // First person is Head
+            const head = family.head;
 
-            let membersHtml = '';
+            let membersListHtml = '';
             family.members.forEach((m, idx) => {
                 const isHead = idx === 0;
-                membersHtml += `
-                    <tr class="${isHead ? 'bg-indigo-50/50 font-medium' : ''}">
-                        <td class="p-3">${m.name} ${isHead ? '<span class="bg-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full ml-1">कुटुंब प्रमुख</span>' : ''}</td>
-                        <td class="p-3">${m.age} / ${m.gender}</td>
-                        <td class="p-3 font-mono text-xs">${m.epic}</td>
-                        <td class="p-3">${m.mobile || '-'}</td>
-                        <td class="p-3 text-center">
-                            <button onclick="openEditModal(${m.originalIndex})" class="text-indigo-600 p-1"><i class="fa-solid fa-pen"></i></button>
-                        </td>
-                    </tr>
-                `;
+                membersListHtml += `
+                    <div class="p-3.5 rounded-2xl border ${isHead ? 'bg-amber-50/50 border-amber-200' : 'bg-slate-50 border-slate-200/70'} flex items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <span class="text-xs font-bold text-slate-500">#${m.voterNo}</span>
+                                <span class="font-extrabold text-slate-900 text-sm sm:text-base">${m.name}</span>
+                                ${isHead ? '<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full"><i class="fa-solid fa-crown text-amber-500"></i> प्रमुख</span>' : ''}
+                            </div>
+                            <p class="text-xs text-slate-600">वय/लिंग: <strong>${m.age}/${m.gender}</strong> | EPIC: <span class="font-mono font-bold">${m.epic}</span></p>
+                            <p class="text-xs font-semibold ${m.mobile ? 'text-emerald-700' : 'text-slate-400'}">
+                                <i class="fa-solid fa-phone text-[10px]"></i> ${m.mobile ? m.mobile : 'मोबाईल नाही (प्रमुखाच्या नंबरवर जाईल)'}
+                            </p>
+                        </div>
+                        <button onclick="openEditModal(${m.originalIndex})" class="w-9 h-9 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center shrink-0">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                    </div>`;
             });
 
             container.innerHTML = `
-                <div class="bg-white rounded-xl shadow p-6 space-y-4 border border-indigo-100">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-4">
+                <div class="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-amber-300 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3.5">
                         <div>
-                            <h4 class="text-lg font-bold text-gray-800">कुटुंब क्रमांक: ${fNo}</h4>
-                            <p class="text-sm text-gray-500">कुटुंब प्रमुख: ${head.name} | घर क्र: ${head.house} | एकूण सदस्य: ${family.members.length}</p>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="bg-orange-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-lg">कुटुंब क्र: ${fNo}</span>
+                                <span class="text-xs font-bold text-slate-500">वार्ड: ${head.ward} | घर क्र: ${head.house}</span>
+                            </div>
+                            <h4 class="text-lg font-extrabold text-slate-900">प्रमुख: ${head.name}</h4>
                         </div>
-                        <button onclick="sendFamilyWhatsApp('${fNo}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow flex items-center gap-2 transition">
-                            <i class="fa-brands fa-whatsapp text-lg"></i> संपूर्ण कुटुंबाची स्लिप पाठवा
-                        </button>
+                        <div class="grid grid-cols-2 sm:flex gap-2">
+                            <button onclick="sendFamilySlip('${fNo}', 'whatsapp')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs flex items-center justify-center gap-1.5">
+                                <i class="fa-brands fa-whatsapp text-base"></i> संपूर्ण कुटुंब WhatsApp
+                            </button>
+                            <button onclick="sendFamilySlip('${fNo}', 'sms')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs flex items-center justify-center gap-1.5">
+                                <i class="fa-solid fa-comment-sms text-base"></i> SMS
+                            </button>
+                        </div>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead class="bg-gray-100 text-gray-700 text-xs uppercase">
-                                <tr>
-                                    <th class="p-3">सदस्याचे नाव</th>
-                                    <th class="p-3">वय / लिंग</th>
-                                    <th class="p-3">EPIC नंबर</th>
-                                    <th class="p-3">मोबाईल क्र.</th>
-                                    <th class="p-3 text-center">कृती</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 text-sm">
-                                ${membersHtml}
-                            </tbody>
-                        </table>
+                    <div class="space-y-2.5">
+                        ${membersListHtml}
                     </div>
-                </div>
-            `;
+                </div>`;
         }
 
-        // WhatsApp Routing & Message Generation
-        function sendSingleSlip(index) {
-            const v = votersData[index];
-            // Find Head of family to get mobile if member mobile is missing
-            let targetMobile = v.mobile;
-            if (!targetMobile) {
-                const familyMembers = votersData.filter(item => item.familyNo === v.familyNo);
-                if (familyMembers.length > 0 && familyMembers[0].mobile) {
-                    targetMobile = familyMembers[0].mobile;
+        // SLIP MESSAGE GENERATOR (Strictly Excludes Family No & Group No)
+        function appendCampaignText(msg) {
+            if (campaignSettings.enabled !== false) {
+                if (campaignSettings.candidate || campaignSettings.message || campaignSettings.image) {
+                    msg += `\n━━━━━━━━━━━━━━━━━━\n`;
+                    if (campaignSettings.candidate) msg += `✨ *${campaignSettings.candidate}*\n`;
+                    if (campaignSettings.message) msg += `📢 ${campaignSettings.message}\n`;
+                    if (campaignSettings.image) msg += `🖼️ प्रचार साहित्य: ${campaignSettings.image}\n`;
                 }
             }
+            return msg;
+        }
+
+        function getTargetMobileForVoter(v) {
+            if (v.mobile && v.mobile.trim() !== '') {
+                return { mobile: v.mobile.trim(), isHeadFallback: false };
+            }
+            const head = window.headLookup[v.familyNo];
+            if (head && head.mobile && head.mobile.trim() !== '') {
+                return { mobile: head.mobile.trim(), isHeadFallback: true, headName: head.name };
+            }
+            return { mobile: '', isHeadFallback: false };
+        }
+
+        function sendSingleSlip(index, channel) {
+            const v = votersData[index];
+            const routing = getTargetMobileForVoter(v);
 
             let msg = `📋 *मतदार माहिती स्लिप*\n\n`;
             msg += `👤 *नाव:* ${v.name}\n`;
-            msg += `🏠 *घर क्र:* ${v.house} | 🪪 *वय/लिंग:* ${v.age}/${v.gender}\n`;
-            msg += `🆔 *EPIC No:* ${v.epic}\n`;
-            msg += `📍 *वार्ड क्र:* ${v.ward} (मतदार क्र: ${v.voterNo})\n\n`;
+            msg += `📍 *वार्ड क्र:* ${v.ward} | *मतदार क्र:* ${v.voterNo}\n`;
+            msg += `🏠 *घर क्र:* ${v.house} | *वय/लिंग:* ${v.age}/${v.gender}\n`;
+            msg += `🆔 *EPIC नं:* ${v.epic}\n`;
+            // Family No and Group No are excluded intentionally
 
-            if (campaignSettings.candidate) {
-                msg += `✨ *${campaignSettings.candidate}*\n`;
-            }
-            if (campaignSettings.message) {
-                msg += `📢 ${campaignSettings.message}\n`;
-            }
-            if (campaignSettings.image) {
-                msg += `🖼️ छायाचित्र / बॅनर: ${campaignSettings.image}\n`;
+            msg = appendCampaignText(msg);
+
+            if (routing.isHeadFallback) {
+                showToast(`सदस्याचा नंबर नसल्याने कुटुंब प्रमुख (${routing.headName}) यांच्या नंबरवर पाठवत आहोत...`);
             }
 
-            openWhatsApp(targetMobile, msg);
+            dispatchMessage(routing.mobile, msg, channel);
         }
 
-        function sendFamilyWhatsApp(fNo) {
+        function sendFamilySlip(fNo, channel) {
             const family = window.familyMap[fNo];
             if (!family) return;
-            const head = family.members[0];
-            let targetMobile = head.mobile;
+            const head = family.head;
+
+            let targetMobile = head.mobile ? head.mobile.trim() : '';
             if (!targetMobile) {
-                const anyMob = family.members.find(m => m.mobile);
-                if (anyMob) targetMobile = anyMob.mobile;
+                const altMember = family.members.find(m => m.mobile && m.mobile.trim() !== '');
+                if (altMember) targetMobile = altMember.mobile.trim();
             }
 
             let msg = `📋 *कुटुंब मतदार यादी स्लिप*\n`;
-            msg += `🏡 *घर क्र:* ${head.house} | *प्रमुख:* ${head.name}\n\n`;
-            
+            msg += `📍 *वार्ड क्र:* ${head.ward} | 🏡 *घर क्र:* ${head.house}\n`;
+            msg += `👑 *कुटुंब प्रमुख:* ${head.name}\n\n`;
+
             family.members.forEach((m, idx) => {
-                msg += `${idx + 1}. *${m.name}*\n`;
-                msg += `   • वय/लिंग: ${m.age}/${m.gender} | EPIC: ${m.epic}\n`;
-                if(m.mobile) msg += `   • मोबाईल: ${m.mobile}\n`;
+                msg += `*${idx + 1}. ${m.name}*\n`;
+                msg += `   • मतदार क्र: ${m.voterNo} | वय/लिंग: ${m.age}/${m.gender}\n`;
+                msg += `   • EPIC नं: ${m.epic}\n`;
             });
+            // Family No and Group No are excluded intentionally
 
-            msg += `\n`;
-            if (campaignSettings.candidate) {
-                msg += `✨ *${campaignSettings.candidate}*\n`;
-            }
-            if (campaignSettings.message) {
-                msg += `📢 ${campaignSettings.message}\n`;
-            }
-            if (campaignSettings.image) {
-                msg += `🖼️ प्रचार बॅनर: ${campaignSettings.image}\n`;
-            }
-
-            openWhatsApp(targetMobile, msg);
+            msg = appendCampaignText(msg);
+            dispatchMessage(targetMobile, msg, channel);
         }
 
-        function openWhatsApp(mobile, text) {
+        function dispatchMessage(mobile, text, channel) {
             let cleanMob = mobile ? mobile.replace(/\D/g, '') : '';
-            if (cleanMob.length === 10) cleanMob = '91' + cleanMob;
             const encoded = encodeURIComponent(text);
-            const url = cleanMob ? `https://wa.me/${cleanMob}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
-            window.open(url, '_blank');
+
+            if (channel === 'whatsapp') {
+                if (cleanMob.length === 10) cleanMob = '91' + cleanMob;
+                const url = cleanMob ? `https://wa.me/${cleanMob}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+                window.open(url, '_blank');
+            } else if (channel === 'sms') {
+                const smsUrl = cleanMob ? `sms:${cleanMob}?body=${encoded}` : `sms:?body=${encoded}`;
+                window.location.href = smsUrl;
+            }
         }
 
-        // Edit Modal Functions
+        // EDIT VOTER MODAL
         function openEditModal(index) {
             const v = votersData[index];
             document.getElementById('edit-index').value = index;
-            document.getElementById('edit-name').value = v.name;
-            document.getElementById('edit-ward').value = v.ward;
-            document.getElementById('edit-voter-no').value = v.voterNo;
-            document.getElementById('edit-family-no').value = v.familyNo;
-            document.getElementById('edit-group').value = v.groupNo;
-            document.getElementById('edit-house').value = v.house;
-            document.getElementById('edit-age').value = v.age;
-            document.getElementById('edit-gender').value = v.gender;
-            document.getElementById('edit-epic').value = v.epic;
-            document.getElementById('edit-caste').value = v.caste;
-            document.getElementById('edit-mobile').value = v.mobile;
+            document.getElementById('edit-name').value = v.name || '';
+            document.getElementById('edit-ward').value = v.ward || '';
+            document.getElementById('edit-voter-no').value = v.voterNo || '';
+            document.getElementById('edit-family-no').value = v.familyNo || '';
+            document.getElementById('edit-group').value = v.groupNo || '';
+            document.getElementById('edit-house').value = v.house || '';
+            document.getElementById('edit-age').value = v.age || '';
+            document.getElementById('edit-gender').value = v.gender || 'पुरुष';
+            document.getElementById('edit-epic').value = v.epic || '';
+            document.getElementById('edit-caste').value = v.caste || '';
+            document.getElementById('edit-mobile').value = v.mobile || '';
 
-            document.getElementById('edit-modal').classList.remove('hidden');
+            const modal = document.getElementById('edit-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
 
         function closeEditModal() {
-            document.getElementById('edit-modal').classList.add('hidden');
+            const modal = document.getElementById('edit-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         }
 
         function saveEditedVoter() {
             const idx = parseInt(document.getElementById('edit-index').value);
             votersData[idx] = {
-                name: document.getElementById('edit-name').value,
-                ward: document.getElementById('edit-ward').value,
-                voterNo: document.getElementById('edit-voter-no').value,
-                familyNo: document.getElementById('edit-family-no').value,
-                groupNo: document.getElementById('edit-group').value,
-                house: document.getElementById('edit-house').value,
-                age: document.getElementById('edit-age').value,
+                name: document.getElementById('edit-name').value.trim(),
+                ward: document.getElementById('edit-ward').value.trim(),
+                voterNo: document.getElementById('edit-voter-no').value.trim(),
+                familyNo: document.getElementById('edit-family-no').value.trim(),
+                groupNo: document.getElementById('edit-group').value.trim(),
+                house: document.getElementById('edit-house').value.trim(),
+                age: document.getElementById('edit-age').value.trim(),
                 gender: document.getElementById('edit-gender').value,
-                epic: document.getElementById('edit-epic').value,
-                caste: document.getElementById('edit-caste').value,
-                mobile: document.getElementById('edit-mobile').value
+                epic: document.getElementById('edit-epic').value.trim(),
+                caste: document.getElementById('edit-caste').value.trim(),
+                mobile: document.getElementById('edit-mobile').value.trim()
             };
 
             saveDataToStorage();
             closeEditModal();
             initApp();
-            alert('माहिती यशस्वीरित्या अपडेट केली!');
+
+            const currentFam = document.getElementById('family-select').value;
+            if (currentFam && window.familyMap[currentFam]) {
+                document.getElementById('family-select').value = currentFam;
+                renderFamilyDetails();
+            }
+            showToast('मतदाराची माहिती यशस्वीरित्या जतन केली!');
         }
 
-        // Tab Navigation
+        // TAB SWITCHING
         function switchTab(tab) {
             ['search', 'family', 'settings'].forEach(t => {
                 document.getElementById(`tab-${t}`).classList.add('hidden');
-                document.getElementById(`btn-${t}`).classList.remove('bg-indigo-800');
-                document.getElementById(`btn-${t}`).classList.add('bg-indigo-900/60');
+                const btn = document.getElementById(`btn-${t}`);
+                btn.classList.remove('bg-orange-600', 'text-white', 'font-bold', 'shadow-xs');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-100', 'font-semibold');
             });
             document.getElementById(`tab-${tab}`).classList.remove('hidden');
-            document.getElementById(`btn-${tab}`).classList.remove('bg-indigo-900/60');
-            document.getElementById(`btn-${tab}`).classList.add('bg-indigo-800');
+            const activeBtn = document.getElementById(`btn-${tab}`);
+            activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-100', 'font-semibold');
+            activeBtn.classList.add('bg-orange-600', 'text-white', 'font-bold', 'shadow-xs');
         }
     </script>
 </body>
-</html>
+                    </html>
