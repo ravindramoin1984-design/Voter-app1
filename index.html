@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>मतदार यादी व्यवस्थापन व स्लिप प्रणाली</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for Excel/CSV parsing & export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Google Fonts: Noto Sans Devanagari & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans Devanagari"', 'Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#ea580c', // Saffron-Orange inspired theme
+                        primaryDark: '#c2410c',
+                        secondary: '#1e3a8a', // Deep Navy Blue
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans Devanagari', 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .fade-in {
+            animation: fadeIn 0.25s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container (No alert() used) -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-gradient-to-r from-orange-600 via-orange-500 to-amber-600 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-white/20 p-2.5 rounded-xl backdrop-blur-sm">
+                    <i class="fa-solid fa-check-to-slot text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold leading-tight">मतदार यादी व स्लिप प्रणाली</h1>
+                    <p class="text-xs text-orange-100">कुटुंब प्रमुख ओळख व स्मार्ट WhatsApp/SMS मेसेजिंग</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="openTemplateModal()" class="bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-medium px-3 py-2 rounded-lg transition flex items-center gap-1.5 border border-white/20">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>मेसेज सेटिंग्ज</span>
+                </button>
+                <label for="excelUploadInput" class="cursor-pointer bg-white text-orange-600 hover:bg-orange-50 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-lg shadow-sm transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>एक्सेल अपलोड</span>
+                </label>
+                <input type="file" id="excelUploadInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Empty / Welcome State (Shown when no data is loaded) -->
+        <div id="welcomeSection" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-10 text-center max-w-3xl mx-auto my-6 fade-in">
+            <div class="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-5 text-3xl">
+                <i class="fa-solid fa-users-viewfinder"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">तुमची मतदार यादी (Excel / CSV) अपलोड करा</h2>
+            <p class="text-slate-600 text-sm sm:text-base mb-6 max-w-xl mx-auto">
+                तुमच्या एक्सेल फाईलमधील <strong>कुटुंब क्र., घर क्र., नाव, वय, लिंग, EPIC नंबर, जात प्रवर्ग, मोबाईल क्र.</strong> या माहितीवरून ॲप आपोआप कुटुंब प्रमुख ओळखेल आणि ज्यांचा मोबाईल नंबर नाही त्यांचा मेसेज कुटुंब प्रमुखाला पाठवेल.
+            </p>
+
+            <!-- Drag and Drop Upload Box -->
+            <div id="dropZone" class="border-2 border-dashed border-orange-300 hover:border-orange-500 bg-orange-50/40 rounded-xl p-8 mb-6 transition cursor-pointer" onclick="document.getElementById('excelUploadInput').click()">
+                <i class="fa-solid fa-cloud-arrow-up text-4xl text-orange-500 mb-3"></i>
+                <p class="font-semibold text-slate-700">एक्सेल फाईल निवडण्यासाठी येथे क्लिक करा किंवा फाईल ड्रॅग करा</p>
+                <p class="text-xs text-slate-500 mt-1">सपोर्टेड फॉरमॅट: .xlsx, .xls, .csv (डेटा तुमच्या मोबाईल/ब्राउझरमध्ये पूर्णपणे सुरक्षित राहील)</p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 border-t border-slate-100">
+                <button onclick="loadDemoData()" class="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white font-medium px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-sm">
+                    <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                    <span>नमुना डेटा पहा (Demo Data)</span>
+                </button>
+                <button onclick="downloadSampleExcel()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-sm">
+                    <i class="fa-solid fa-download"></i>
+                    <span>नमुना Excel फाईल डाउनलोड करा</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Active Dashboard Section (Hidden until data is loaded) -->
+        <div id="dashboardSection" class="hidden space-y-6 fade-in">
+            
+            <!-- Stats Overview Cards -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">एकूण मतदार</p>
+                        <p id="statTotalVoters" class="text-xl sm:text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid fa-house-user"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">एकूण कुटुंबे (प्रमुख)</p>
+                        <p id="statTotalFamilies" class="text-xl sm:text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-solid fa-venus-mars"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">पुरुष / स्त्री</p>
+                        <p id="statGender" class="text-base sm:text-lg font-bold text-slate-800">0 / 0</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0">
+                        <i class="fa-brands fa-whatsapp"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium">मेसेजसाठी उपलब्ध</p>
+                        <p id="statReachable" class="text-xl sm:text-2xl font-bold text-emerald-700">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls, Search, Filters & View Switcher -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div class="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+                    <!-- Search Bar -->
+                    <div class="relative flex-grow max-w-xl">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="searchInput" oninput="applyFilters()" placeholder="नाव, EPIC नंबर, कुटुंब क्र., घर क्र. किंवा मोबाईल शोधा..." 
+                               class="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:bg-white transition">
+                        <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                        </button>
+                    </div>
+
+                    <!-- View Mode Switcher -->
+                    <div class="flex items-center bg-slate-100 p-1 rounded-xl self-start md:self-auto">
+                        <button id="btnViewVoters" onclick="switchView('voters')" class="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-white text-orange-600 shadow-sm transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-list-ul"></i>
+                            <span>मतदार यादी</span>
+                        </button>
+                        <button id="btnViewFamilies" onclick="switchView('families')" class="px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-people-roof"></i>
+                            <span>कुटुंबनिहाय यादी</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filter Row -->
+                <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
+                    <span class="text-xs font-semibold text-slate-500 mr-1"><i class="fa-solid fa-filter mr-1"></i>फिल्टर:</span>
+                    
+                    <select id="filterCaste" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs sm:text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">सर्व जात प्रवर्ग</option>
+                    </select>
+
+                    <select id="filterGender" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs sm:text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">सर्व लिंग (पुरुष/स्त्री)</option>
+                        <option value="पुरुष">पुरुष</option>
+                        <option value="स्त्री">स्त्री</option>
+                        <option value="इतर">इतर</option>
+                    </select>
+
+                    <select id="filterMobileStatus" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-700 text-xs sm:text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">सर्व मोबाईल स्थिती</option>
+                        <option value="own">स्वतःचा मोबाईल असलेले</option>
+                        <option value="head_fallback">प्रमुखाच्या नंबरवर अवलंबून</option>
+                        <option value="none">मोबाईल उपलब्ध नसलेले</option>
+                    </select>
+
+                    <label class="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 px-3 py-2 rounded-lg cursor-pointer select-none">
+                        <input type="checkbox" id="filterHeadOnly" onchange="applyFilters()" class="rounded text-orange-600 focus:ring-orange-500">
+                        <span class="text-xs sm:text-sm font-medium text-orange-900">फक्त कुटुंब प्रमुख</span>
+                    </label>
+
+                    <div class="ml-auto flex items-center gap-2">
+                        <button onclick="exportUpdatedExcel()" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-medium px-3 py-2 rounded-lg transition flex items-center gap-1" title="सुधारित डेटा एक्सेलमध्ये डाउनलोड करा">
+                            <i class="fa-solid fa-file-export"></i>
+                            <span class="hidden sm:inline">डेटा Export करा</span>
+                        </button>
+                        <button onclick="confirmClearData()" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium px-3 py-2 rounded-lg transition flex items-center gap-1" title="सध्याचा डेटा पुसून नवीन फाईल अपलोड करा">
+                            <i class="fa-solid fa-trash-can"></i>
+                            <span class="hidden sm:inline">डेटा पुसा</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Count Bar -->
+            <div class="flex items-center justify-between text-xs sm:text-sm text-slate-600 px-1">
+                <p id="resultsCounter">दाखवत आहे: 0 मतदार</p>
+                <p class="text-slate-400 text-xs hidden sm:block"><i class="fa-solid fa-circle-info mr-1"></i>कुटुंब क्र. मधील पहिली व्यक्ती आपोआप 'कुटुंब प्रमुख' मानली जाते.</p>
+            </div>
+
+            <!-- Voter Cards Grid (Individual Voter View) -->
+            <div id="votersListContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Populated dynamically via JS -->
+            </div>
+
+            <!-- Family Groups Container (Family View) -->
+            <div id="familiesListContainer" class="hidden space-y-4">
+                <!-- Populated dynamically via JS -->
+            </div>
+
+            <!-- Load More / Pagination -->
+            <div id="paginationContainer" class="hidden text-center pt-4">
+                <button onclick="loadMoreItems()" class="bg-white hover:bg-slate-50 text-slate-700 font-semibold px-6 py-2.5 rounded-xl border border-slate-300 shadow-sm transition text-sm">
+                    अजून मतदार पहा <i class="fa-solid fa-chevron-down ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-10">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+            मतदार यादी व्यवस्थापन व स्लिप प्रणाली • तुमचा सर्व डेटा तुमच्याच ब्राउझरमध्ये (Offline Storage) सुरक्षित राहतो.
+        </div>
+    </footer>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- 1. Column Mapping Modal (If Excel columns don't match automatically) -->
+    <div id="mappingModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-table-columns text-orange-600 mr-2"></i>एक्सेल कॉलम्स जुळवा (Column Mapping)</h3>
+                <button onclick="closeModal('mappingModal')" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+            </div>
+            <p class="text-xs text-slate-600 mt-2 mb-4">तुमच्या एक्सेल शीटमधील योग्य कॉलम खालील रकान्यांसमोर निवडा:</p>
+            
+            <div id="mappingFieldsContainer" class="space-y-3">
+                <!-- Dynamic selects injected here -->
+            </div>
+
+            <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-200">
+                <button onclick="closeModal('mappingModal')" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">रद्द करा</button>
+                <button onclick="confirmColumnMapping()" class="px-5 py-2 rounded-lg text-sm font-semibold bg-orange-600 hover:bg-orange-700 text-white shadow-sm">डेटा सेव्ह करा</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Message Template Settings Modal -->
+    <div id="templateModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fa-brands fa-whatsapp text-emerald-600 mr-2"></i>मतदार स्लिप मेसेज सेटिंग्ज</h3>
+                <button onclick="closeModal('templateModal')" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+            </div>
+            
+            <div class="mt-4 space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">निवडणूक / बूथ माहिती (मेसेजच्या वरचा भाग):</label>
+                    <input type="text" id="tplHeader" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none" placeholder="उदा. विधानसभा निवडणूक २०२६ - मतदार स्लिप">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">मतदान केंद्र व तारीख (मेसेजच्या खालचा भाग):</label>
+                    <textarea id="tplFooter" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none" placeholder="उदा. मतदान केंद्र: जि.प. शाळा, खोली क्र. २&#10;दिनांक: २० नोव्हेंबर, सकाळी ७ ते सायं. ६"></textarea>
+                </div>
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+                    <strong>टीप:</strong> मतदाराचे नाव, वय, लिंग, EPIC नंबर, घर क्र. आणि कुटुंब क्र. ही माहिती मेसेजमध्ये आपोआप जोडली जाईल. तसेच ज्यांचा मोबाईल नंबर नसेल त्यांच्या मेसेजमध्ये कुटुंब प्रमुखाचा संदर्भ आपोआप येईल.
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-6 pt-3 border-t border-slate-200">
+                <button onclick="closeModal('templateModal')" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">बंद करा</button>
+                <button onclick="saveMessageTemplate()" class="px-5 py-2 rounded-lg text-sm font-semibold bg-orange-600 hover:bg-orange-700 text-white">सेटिंग्ज सेव्ह करा</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Edit Mobile Number Modal -->
+    <div id="editMobileModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-phone-volume text-orange-600 mr-2"></i>मोबाईल नंबर अपडेट करा</h3>
+                <button onclick="closeModal('editMobileModal')" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+            </div>
+            
+            <div class="mt-4 space-y-3">
+                <p id="editMobileVoterName" class="text-sm font-semibold text-slate-700"></p>
+                <p id="editMobileFamilyNote" class="text-xs text-slate-500"></p>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">१० अंकी मोबाईल क्रमांक:</label>
+                    <input type="tel" id="editMobileInput" maxlength="10" placeholder="उदा. 9876543210" class="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-base font-medium tracking-wider focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-6 pt-3 border-t border-slate-200">
+                <button onclick="closeModal('editMobileModal')" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100">रद्द करा</button>
+                <button onclick="saveUpdatedMobile()" class="px-5 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white">नंबर सेव्ह करा</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Custom Confirmation Modal (Replaces confirm()) -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl text-center">
+            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3 text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 mb-1">डेटा कायमचा पुसायचा का?</h3>
+            <p class="text-xs text-slate-600 mb-5">सध्या अपलोड केलेली मतदार यादी ब्राउझरमधून काढून टाकली जाईल. तुम्हाला नवीन एक्सेल फाईल अपलोड करता येईल.</p>
+            <div class="flex justify-center gap-3">
+                <button onclick="closeModal('confirmModal')" class="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 text-slate-700">नाही, राहू द्या</button>
+                <button onclick="executeClearData()" class="px-4 py-2 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white">होय, डेटा पुसा</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== APPLICATION STATE ====================
+        const STORAGE_KEY = 'marathi_voter_app_data_v1';
+        const TEMPLATE_KEY = 'marathi_voter_app_tpl_v1';
+
+        let rawVoters = [];          // Base voter objects
+        let processedVoters = [];    // Enriched with Family Head & Routing info
+        let familyGroups = {};       // Map of familyNo -> { head, members }
+        let filteredVoters = [];     // After search & filters
+        let filteredFamilies = [];   // Filtered family keys
+        
+        let currentView = 'voters';  // 'voters' or 'families'
+        let displayLimit = 60;       // Pagination limit for smooth rendering
+        let pendingRawRows = [];     // Used during manual column mapping
+        let pendingHeaders = [];
+        let editingVoterId = null;
+
+        // Default Message Template
+        let msgTemplate = {
+            header: '🗳️ *मतदार माहिती स्लिप*',
+            footer: '📍 मतदान केंद्र: आपले जवळचे मतदान केंद्र\nकृपया आपले ओळखपत्र (EPIC / आधार कार्ड) सोबत ठेवावे.'
+        };
+
+        // Required 8 fields & their possible Excel column aliases
+        const FIELD_DEFINITIONS = [
+            { key: 'familyNo', label: 'कुटुंब क्र. (Family No)', aliases: ['कुटुंब क्र.', 'कुटुंब क्र', 'कुटुंब क्रमांक', 'family no', 'family_no', 'family', 'kutumb'] },
+            { key: 'houseNo', label: 'घर क्र. (House No)', aliases: ['घर क्र.', 'घर क्र', 'घर क्रमांक', 'house no', 'house_no', 'house', 'ghar'] },
+            { key: 'name', label: 'नाव (Name)', aliases: ['नाव', 'मतदाराचे नाव', 'पूर्ण नाव', 'name', 'voter name', 'full name'] },
+            { key: 'age', label: 'वय (Age)', aliases: ['वय', 'age', 'vay'] },
+            { key: 'gender', label: 'लिंग (Gender)', aliases: ['लिंग', 'स्त्री/पुरुष', 'gender', 'sex'] },
+            { key: 'epicNo', label: 'EPIC नंबर (Voter ID)', aliases: ['epic नंबर', 'epic नं', 'epic', 'voter id', 'card no', 'ओळखपत्र क्र', 'epic no'] },
+            { key: 'caste', label: 'जात प्रवर्ग (Caste Category)', aliases: ['जात प्रवर्ग', 'जात', 'प्रवर्ग', 'caste', 'category', 'caste category'] },
+            { key: 'mobile', label: 'मोबाईल क्र. (Mobile No)', aliases: ['मोबाईल क्र.', 'मोबाईल क्र', 'मोबाईल नंबर', 'मोबाईल', 'mobile', 'mobile no', 'phone', 'contact'] }
+        ];
+
+        // ==================== INITIALIZATION ====================
+        window.onload = function() {
+            loadSavedTemplate();
+            loadSavedData();
+            setupDragAndDrop();
+        };
+
+        function loadSavedTemplate() {
+            try {
+                const saved = localStorage.getItem(TEMPLATE_KEY);
+                if (saved) {
+                    msgTemplate = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Template load error:', e);
+            }
+        }
+
+        function loadSavedData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        rawVoters = parsed;
+                        processAndRenderAll();
+                    }
+                }
+            } catch (e) {
+                console.error('Data load error:', e);
+            }
+        }
+
+        // ==================== TOAST NOTIFICATIONS ====================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-red-600 text-white',
+                info: 'bg-slate-800 text-white',
+                warning: 'bg-amber-600 text-white'
+            };
+            const icons = {
+                success: 'fa-circle-check',
+                error: 'fa-circle-exclamation',
+                info: 'fa-circle-info',
+                warning: 'fa-triangle-exclamation'
+            };
+
+            toast.className = `${colors[type] || colors.info} px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-sm font-medium pointer-events-auto fade-in`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type]}"></i><span>${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // ==================== DRAG & DROP & FILE PARSING ====================
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('dropZone');
+            if (!dropZone) return;
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            dropZone.addEventListener('dragover', () => dropZone.classList.add('border-orange-600', 'bg-orange-100/60'));
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-orange-600', 'bg-orange-100/60'));
+            dropZone.addEventListener('drop', (e) => {
+                dropZone.classList.remove('border-orange-600', 'bg-orange-100/60');
+                const files = e.dataTransfer.files;
+                if (files.length) processExcelFile(files[0]);
+            });
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processExcelFile(file);
+                event.target.value = ''; // Reset input
+            }
+        }
+
+        function processExcelFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Convert sheet to JSON array of objects
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+                    
+                    if (!jsonRows || jsonRows.length === 0) {
+                        showToast('एक्सेल फाईल रिकामी आहे किंवा डेटा वाचता आला नाही.', 'error');
+                        return;
+                    }
+
+                    const headers = Object.keys(jsonRows[0]);
+                    const autoMap = detectColumnMapping(headers);
+
+                    // Check if essential columns (name & familyNo) are detected
+                    if (autoMap.name && autoMap.familyNo) {
+                        ingestMappedData(jsonRows, autoMap);
+                        showToast(`${jsonRows.length} मतदारांची माहिती यशस्वीरित्या अपलोड झाली!`, 'success');
+                    } else {
+                        // Open manual mapping modal
+                        pendingRawRows = jsonRows;
+                        pendingHeaders = headers;
+                        openColumnMappingModal(headers, autoMap);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast('फाईल वाचताना तांत्रिक त्रुटी आली. कृपया योग्य Excel/CSV फाईल निवडा.', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function detectColumnMapping(headers) {
+            const map = {};
+            const normalizedHeaders = headers.map(h => ({
+                original: h,
+                clean: String(h).trim().toLowerCase().replace(/\s+/g, ' ')
+            }));
+
+            FIELD_DEFINITIONS.forEach(field => {
+                const match = normalizedHeaders.find(h => 
+                    field.aliases.some(alias => h.clean === alias || h.clean.includes(alias))
+                );
+                map[field.key] = match ? match.original : '';
+            });
+            return map;
+        }
+
+        function openColumnMappingModal(headers, autoMap) {
+            const container = document.getElementById('mappingFieldsContainer');
+            container.innerHTML = '';
+
+            FIELD_DEFINITIONS.forEach(field => {
+                const div = document.createElement('div');
+                div.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200';
+                
+                let optionsHtml = `<option value="">-- कॉलम निवडा (उपलब्ध नसल्यास सोडा) --</option>`;
+                headers.forEach(h => {
+                    const selected = autoMap[field.key] === h ? 'selected' : '';
+                    optionsHtml += `<option value="${escapeHtml(h)}" ${selected}>${escapeHtml(h)}</option>`;
+                });
+
+                div.innerHTML = `
+                    <label class="text-xs font-semibold text-slate-700">${field.label}</label>
+                    <select id="map_${field.key}" class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs bg-white sm:w-56 focus:ring-2 focus:ring-orange-500">
+                        ${optionsHtml}
+                    </select>
+                `;
+                container.appendChild(div);
+            });
+
+            document.getElementById('mappingModal').classList.remove('hidden');
+        }
+
+        function confirmColumnMapping() {
+            const manualMap = {};
+            FIELD_DEFINITIONS.forEach(field => {
+                manualMap[field.key] = document.getElementById(`map_${field.key}`).value;
+            });
+
+            if (!manualMap.name) {
+                showToast('कृपया किमान "नाव (Name)" कॉलम निवडा.', 'warning');
+                return;
+            }
+
+            ingestMappedData(pendingRawRows, manualMap);
+            closeModal('mappingModal');
+            showToast(`${pendingRawRows.length} मतदारांची माहिती सेव्ह झाली!`, 'success');
+        }
+
+        function cleanMobileNumber(raw) {
+            if (!raw) return '';
+            // Extract digits only
+            let digits = String(raw).replace(/\D/g, '');
+            // Remove leading 91 or 0 if length > 10
+            if (digits.length === 12 && digits.startsWith('91')) {
+                digits = digits.slice(2);
+            } else if (digits.length === 11 && digits.startsWith('0')) {
+                digits = digits.slice(1);
+            }
+            return digits.length === 10 ? digits : '';
+        }
+
+        function normalizeGender(raw) {
+            const val = String(raw || '').trim().toLowerCase();
+            if (val === 'm' || val === 'male' || val.includes('पु') || val.includes('purush')) return 'पुरुष';
+            if (val === 'f' || val === 'female' || val.includes('स्त्री') || val.includes('म') || val.includes('stri')) return 'स्त्री';
+            return val ? String(raw).trim() : 'इतर';
+        }
+
+        function ingestMappedData(rows, map) {
+            rawVoters = rows.map((row, idx) => {
+                const rawFamily = map.familyNo ? String(row[map.familyNo] ?? '').trim() : '';
+                const rawHouse = map.houseNo ? String(row[map.houseNo] ?? '').trim() : '';
+                
+                // If familyNo is empty, fallback to houseNo or unique row id so grouping doesn't break
+                const finalFamilyNo = rawFamily || (rawHouse ? `घर-${rawHouse}` : `F-${idx + 1}`);
+
+                return {
+                    id: `v_${Date.now()}_${idx}`,
+                    originalIndex: idx,
+                    familyNo: finalFamilyNo,
+                    houseNo: rawHouse || '-',
+                    name: map.name ? String(row[map.name] ?? '').trim() : 'अज्ञात मतदार',
+                    age: map.age ? String(row[map.age] ?? '').trim() : '-',
+                    gender: normalizeGender(map.gender ? row[map.gender] : ''),
+                    epicNo: map.epicNo ? String(row[map.epicNo] ?? '').trim().toUpperCase() : '-',
+                    caste: map.caste ? String(row[map.caste] ?? '').trim() : 'इतर',
+                    mobile: cleanMobileNumber(map.mobile ? row[map.mobile] : '')
+                };
+            }).filter(v => v.name && v.name !== '');
+
+            saveDataToStorage();
+            processAndRenderAll();
+        }
+
+        function saveDataToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(rawVoters));
+            } catch (e) {
+                showToast('डेटा ब्राउझर स्टोरेजमध्ये सेव्ह करताना मर्यादा आली, पण सध्याच्या सत्रात वापरता येईल.', 'warning');
+            }
+        }
+
+        // ==================== CORE LOGIC: FAMILY HEAD & MOBILE ROUTING ====================
+        function processAndRenderAll() {
+            if (!rawVoters || rawVoters.length === 0) {
+                document.getElementById('welcomeSection').classList.remove('hidden');
+                document.getElementById('dashboardSection').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('welcomeSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+
+            // Step 1: Group by familyNo preserving Excel order
+            familyGroups = {};
+            rawVoters.forEach(voter => {
+                const fKey = voter.familyNo;
+                if (!familyGroups[fKey]) {
+                    familyGroups[fKey] = {
+                        familyNo: fKey,
+                        houseNo: voter.houseNo,
+                        head: voter, // FIRST person in this familyNo is automatically Family Head!
+                        members: []
+                    };
+                }
+                familyGroups[fKey].members.push(voter);
+            });
+
+            // Step 2: Enrich every voter with Family Head & Smart Mobile Routing logic
+            processedVoters = rawVoters.map(voter => {
+                const fam = familyGroups[voter.familyNo];
+                const head = fam.head;
+                const isHead = (voter.id === head.id);
+
+                // Determine target mobile number
+                let targetMobile = '';
+                let routingType = 'none'; // 'own' | 'head_fallback' | 'none'
+
+                if (voter.mobile && voter.mobile.length === 10) {
+                    targetMobile = voter.mobile;
+                    routingType = 'own';
+                } else if (head.mobile && head.mobile.length === 10) {
+                    targetMobile = head.mobile;
+                    routingType = 'head_fallback';
+                } else {
+                    targetMobile = '';
+                    routingType = 'none';
+                }
+
+                return {
+                    ...voter,
+                    isHead,
+                    headName: head.name,
+                    headMobile: head.mobile,
+                    targetMobile,
+                    routingType,
+                    familySize: fam.members.length
+                };
+            });
+
+            updateDashboardStats();
+            populateDynamicFilters();
+            applyFilters();
+        }
+
+        function updateDashboardStats() {
+            const totalVoters = processedVoters.length;
+            const totalFamilies = Object.keys(familyGroups).length;
+            const males = processedVoters.filter(v => v.gender === 'पुरुष').length;
+            const females = processedVoters.filter(v => v.gender === 'स्त्री').length;
+            const reachable = processedVoters.filter(v => v.targetMobile !== '').length;
+
+            document.getElementById('statTotalVoters').textContent = totalVoters;
+            document.getElementById('statTotalFamilies').textContent = totalFamilies;
+            document.getElementById('statGender').textContent = `${males} / ${females}`;
+            document.getElementById('statReachable').textContent = `${reachable} (${Math.round((reachable/totalVoters)*100)}%)`;
+        }
+
+        function populateDynamicFilters() {
+            const casteSelect = document.getElementById('filterCaste');
+            const currentVal = casteSelect.value;
+            
+            const uniqueCastes = [...new Set(processedVoters.map(v => v.caste).filter(c => c && c !== '-'))].sort();
+            
+            casteSelect.innerHTML = `<option value="">सर्व जात प्रवर्ग (${uniqueCastes.length})</option>`;
+            uniqueCastes.forEach(c => {
+                casteSelect.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
+            });
+            casteSelect.value = currentVal;
+        }
+
+        // ==================== SEARCH, FILTERING & VIEW SWITCHING ====================
+        function applyFilters() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const casteFilter = document.getElementById('filterCaste').value;
+            const genderFilter = document.getElementById('filterGender').value;
+            const mobileStatusFilter = document.getElementById('filterMobileStatus').value;
+            const headOnly = document.getElementById('filterHeadOnly').checked;
+
+            // Toggle clear search icon
+            document.getElementById('clearSearchBtn').classList.toggle('hidden', query === '');
+
+            displayLimit = 60; // Reset pagination on filter change
+
+            filteredVoters = processedVoters.filter(v => {
+                if (casteFilter && v.caste !== casteFilter) return false;
+                if (genderFilter && v.gender !== genderFilter) return false;
+                if (mobileStatusFilter && v.routingType !== mobileStatusFilter) return false;
+                if (headOnly && !v.isHead) return false;
+
+                if (query) {
+                    const searchPool = `${v.name} ${v.epicNo} ${v.familyNo} ${v.houseNo} ${v.mobile} ${v.headName}`.toLowerCase();
+                    if (!searchPool.includes(query)) return false;
+                }
+                return true;
+            });
+
+            // Also compute matching family keys for Family View
+            const matchingFamilySet = new Set(filteredVoters.map(v => v.familyNo));
+            filteredFamilies = Object.keys(familyGroups).filter(fKey => matchingFamilySet.has(fKey));
+
+            renderCurrentView();
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            applyFilters();
+        }
+
+        function switchView(view) {
+            currentView = view;
+            const btnVoters = document.getElementById('btnViewVoters');
+            const btnFamilies = document.getElementById('btnViewFamilies');
+
+            if (view === 'voters') {
+                btnVoters.className = 'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-white text-orange-600 shadow-sm transition flex items-center gap-1.5';
+                btnFamilies.className = 'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5';
+                document.getElementById('votersListContainer').classList.remove('hidden');
+                document.getElementById('familiesListContainer').classList.add('hidden');
+            } else {
+                btnFamilies.className = 'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-white text-orange-600 shadow-sm transition flex items-center gap-1.5';
+                btnVoters.className = 'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5';
+                document.getElementById('votersListContainer').classList.add('hidden');
+                document.getElementById('familiesListContainer').classList.remove('hidden');
+            }
+            renderCurrentView();
+        }
+
+        function loadMoreItems() {
+            displayLimit += 60;
+            renderCurrentView();
+        }
+
+        function renderCurrentView() {
+            if (currentView === 'voters') {
+                renderVotersList();
+            } else {
+                renderFamiliesList();
+            }
+        }
+
+        // ==================== RENDER INDIVIDUAL VOTER CARDS ====================
+        function renderVotersList() {
+            const container = document.getElementById('votersListContainer');
+            const counter = document.getElementById('resultsCounter');
+            const pagination = document.getElementById('paginationContainer');
+
+            counter.textContent = `दाखवत आहे: ${filteredVoters.length} मतदार (एकूण ${processedVoters.length} पैकी)`;
+
+            if (filteredVoters.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full bg-white rounded-2xl p-10 text-center border border-slate-200">
+                        <i class="fa-solid fa-magnifying-glass text-3xl text-slate-300 mb-3"></i>
+                        <p class="text-slate-600 font-medium">तुमच्या शोधाशी जुळणारे कोणतेही मतदार सापडले नाहीत.</p>
+                    </div>`;
+                pagination.classList.add('hidden');
+                return;
+            }
+
+            const slice = filteredVoters.slice(0, displayLimit);
+            pagination.classList.toggle('hidden', filteredVoters.length <= displayLimit);
+
+            container.innerHTML = slice.map(v => {
+                // Badge for Family Head vs Member
+                const roleBadge = v.isHead 
+                    ? `<span class="inline-flex items-center gap-1 bg-orange-100 text-orange-800 border border-orange-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                         <i class="fa-solid fa-crown text-orange-600 text-[10px]"></i> कुटुंब प्रमुख
+                       </span>`
+                    : `<span class="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[11px] font-medium px-2.5 py-0.5 rounded-full">
+                         सदस्य (प्रमुख: ${escapeHtml(v.headName.split(' ')[0])})
+                       </span>`;
+
+                // Mobile Routing Banner
+                let mobileStatusHtml = '';
+                if (v.routingType === 'own') {
+                    mobileStatusHtml = `
+                        <div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs">
+                            <div class="flex items-center gap-2 text-emerald-800">
+                                <i class="fa-solid fa-mobile-screen-button text-emerald-600"></i>
+                                <div>
+                                    <span class="font-semibold">स्वतःचा मोबाईल:</span> ${v.mobile}
+                                </div>
+                            </div>
+                            <button onclick="openEditMobileModal('${v.id}')" class="text-emerald-700 hover:text-emerald-900 p-1" title="नंबर बदला">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                        </div>`;
+                } else if (v.routingType === 'head_fallback') {
+                    mobileStatusHtml = `
+                        <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs">
+                            <div class="flex items-start gap-2 text-amber-900">
+                                <i class="fa-solid fa-share-nodes text-amber-600 mt-0.5"></i>
+                                <div>
+                                    <span class="font-semibold block">प्रमुखाच्या नंबरवर मेसेज जाईल:</span>
+                                    <span>${v.headMobile} (${escapeHtml(v.headName)})</span>
+                                </div>
+                            </div>
+                            <button onclick="openEditMobileModal('${v.id}')" class="text-amber-700 hover:text-amber-900 p-1 shrink-0" title="स्वतःचा नंबर जोडा">
+                                <i class="fa-solid fa-plus-circle"></i>
+                            </button>
+                        </div>`;
+                } else {
+                    mobileStatusHtml = `
+                        <div class="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs">
+                            <div class="flex items-center gap-2 text-red-700">
+                                <i class="fa-solid fa-phone-slash"></i>
+                                <span class="font-medium">मोबाईल नंबर उपलब्ध नाही</span>
+                            </div>
+                            <button onclick="openEditMobileModal('${v.id}')" class="bg-white border border-red-300 text-red-700 hover:bg-red-100 px-2 py-0.5 rounded font-semibold transition">
+                                + नंबर जोडा
+                            </button>
+                        </div>`;
+                }
+
+                // Action Buttons (WhatsApp & SMS)
+                const isDisabled = v.targetMobile === '';
+                const actionButtonsHtml = isDisabled 
+                    ? `<button onclick="openEditMobileModal('${v.id}')" class="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition flex items-center justify-center gap-1.5">
+                         <i class="fa-solid fa-phone-plus"></i> मेसेज पाठवण्यासाठी मोबाईल नंबर जोडा
+                       </button>`
+                    : `<div class="grid grid-cols-2 gap-2">
+                         <button onclick="sendSingleWhatsApp('${v.id}')" class="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1.5">
+                             <i class="fa-brands fa-whatsapp text-base"></i> WhatsApp पाठवा
+                         </button>
+                         <button onclick="sendSingleSMS('${v.id}')" class="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition flex items-center justify-center gap-1.5">
+                             <i class="fa-solid fa-comment-sms text-base"></i> SMS पाठवा
+                         </button>
+                       </div>`;
+
+                return `
+                    <div class="bg-white rounded-2xl border ${v.isHead ? 'border-orange-300 ring-1 ring-orange-100' : 'border-slate-200'} p-4 shadow-sm hover:shadow-md transition flex flex-col justify-between gap-3.5">
+                        <div>
+                            <!-- Top Row: Family & House No + Role Badge -->
+                            <div class="flex items-center justify-between gap-2 mb-2">
+                                <div class="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                                    <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">कुटुंब क्र: ${escapeHtml(v.familyNo)}</span>
+                                    <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">घर क्र: ${escapeHtml(v.houseNo)}</span>
+                                </div>
+                                ${roleBadge}
+                            </div>
+
+                            <!-- Voter Name -->
+                            <h3 class="text-base sm:text-lg font-bold text-slate-800 leading-snug mb-2">${escapeHtml(v.name)}</h3>
+
+                            <!-- Details Grid -->
+                            <div class="grid grid-cols-2 gap-y-1.5 gap-x-2 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                <div><span class="text-slate-400">EPIC नं:</span> <strong class="text-slate-800 font-mono">${escapeHtml(v.epicNo)}</strong></div>
+                                <div><span class="text-slate-400">वय / लिंग:</span> <strong class="text-slate-800">${escapeHtml(v.age)} / ${escapeHtml(v.gender)}</strong></div>
+                                <div class="col-span-2"><span class="text-slate-400">जात प्रवर्ग:</span> <strong class="text-slate-800">${escapeHtml(v.caste)}</strong></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2.5">
+                            ${mobileStatusHtml}
+                            ${actionButtonsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== RENDER FAMILY GROUP VIEW ====================
+        function renderFamiliesList() {
+            const container = document.getElementById('familiesListContainer');
+            const counter = document.getElementById('resultsCounter');
+            const pagination = document.getElementById('paginationContainer');
+
+            counter.textContent = `दाखवत आहे: ${filteredFamilies.length} कुटुंबे (एकूण ${Object.keys(familyGroups).length} कुटुंबे)`;
+
+            if (filteredFamilies.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-10 text-center border border-slate-200">
+                        <p class="text-slate-600 font-medium">कोणतेही कुटुंब सापडले नाही.</p>
+                    </div>`;
+                pagination.classList.add('hidden');
+                return;
+            }
+
+            const slice = filteredFamilies.slice(0, displayLimit);
+            pagination.classList.toggle('hidden', filteredFamilies.length <= displayLimit);
+
+            container.innerHTML = slice.map(fKey => {
+                const fam = familyGroups[fKey];
+                const head = fam.head;
+                const hasHeadMobile = head.mobile && head.mobile.length === 10;
+
+                // Enrich members list for display
+                const membersHtml = fam.members.map((m, idx) => {
+                    const isFirst = idx === 0;
+                    const mMobile = m.mobile ? m.mobile : (hasHeadMobile ? `${head.mobile} (प्रमुख)` : 'नाही');
+                    return `
+                        <div class="flex flex-wrap items-center justify-between gap-2 py-2.5 px-3 ${isFirst ? 'bg-orange-50/70' : 'bg-white'} border-b last:border-b-0 border-slate-100 text-xs sm:text-sm">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-full ${isFirst ? 'bg-orange-600 text-white' : 'bg-slate-200 text-slate-700'} text-[11px] font-bold flex items-center justify-center shrink-0">${idx + 1}</span>
+                                <div>
+                                    <span class="font-bold text-slate-800">${escapeHtml(m.name)}</span>
+                                    ${isFirst ? '<span class="ml-1.5 text-[10px] bg-orange-100 text-orange-800 border border-orange-300 px-1.5 py-0.5 rounded font-bold">कुटुंब प्रमुख</span>' : ''}
+                                    <div class="text-xs text-slate-500 mt-0.5">
+                                        EPIC: <span class="font-mono font-semibold text-slate-700">${escapeHtml(m.epicNo)}</span> • वय: ${escapeHtml(m.age)} (${escapeHtml(m.gender)}) • प्रवर्ग: ${escapeHtml(m.caste)}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 ml-auto">
+                                <span class="text-xs ${m.mobile ? 'text-emerald-700 font-semibold' : 'text-slate-500'}">
+                                    <i class="fa-solid fa-phone text-[10px] mr-1"></i>${mMobile}
+                                </span>
+                                <button onclick="openEditMobileModal('${m.id}')" class="text-slate-400 hover:text-orange-600 p-1" title="मोबाईल नंबर बदला">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                ${(m.mobile || hasHeadMobile) ? `
+                                    <button onclick="sendSingleWhatsApp('${m.id}')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2.5 py-1 rounded-lg text-xs font-semibold transition" title="फक्त या सदस्याची स्लिप पाठवा">
+                                        <i class="fa-brands fa-whatsapp"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <!-- Family Header -->
+                        <div class="bg-slate-800 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="bg-orange-500 text-white font-bold px-3 py-1 rounded-lg text-xs sm:text-sm">
+                                    कुटुंब क्र. ${escapeHtml(fam.familyNo)}
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-sm sm:text-base flex items-center gap-1.5">
+                                        <i class="fa-solid fa-crown text-amber-400 text-xs"></i>
+                                        ${escapeHtml(head.name)}
+                                    </h3>
+                                    <p class="text-xs text-slate-300">घर क्र: ${escapeHtml(fam.houseNo)} • एकूण सदस्य: ${fam.members.length}</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                ${hasHeadMobile ? `
+                                    <button onclick="sendCombinedFamilyWhatsApp('${escapeHtml(fam.familyNo)}')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl shadow transition flex items-center gap-1.5">
+                                        <i class="fa-brands fa-whatsapp text-base"></i>
+                                        <span>संपूर्ण कुटुंबाची एकत्रित स्लिप पाठवा (${head.mobile})</span>
+                                    </button>
+                                ` : `
+                                    <button onclick="openEditMobileModal('${head.id}')" class="bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5">
+                                        <i class="fa-solid fa-phone-plus"></i> प्रमुखाचा मोबाईल जोडा
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+
+                        <!-- Family Members List -->
+                        <div class="divide-y divide-slate-100">
+                            ${membersHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==================== WHATSAPP & SMS MESSAGE GENERATION ====================
+        function buildSingleVoterMessage(voter) {
+            let lines = [];
+            if (msgTemplate.header.trim()) lines.push(msgTemplate.header.trim());
+            lines.push('━━━━━━━━━━━━━━━━━━━━');
+            lines.push(`👤 *नाव:* ${voter.name}`);
+            lines.push(`🆔 *EPIC नंबर:* ${voter.epicNo}`);
+            lines.push(`🏠 *घर क्र.:* ${voter.houseNo} | *कुटुंब क्र.:* ${voter.familyNo}`);
+            lines.push(`🎂 *वय / लिंग:* ${voter.age} वर्षे / ${voter.gender}`);
+            
+            if (voter.routingType === 'head_fallback') {
+                lines.push(`👨‍👩‍👧‍👦 *कुटुंब प्रमुख:* ${voter.headName} यांच्या मोबाईलवर पाठवले`);
+            }
+            
+            lines.push('━━━━━━━━━━━━━━━━━━━━');
+            if (msgTemplate.footer.trim()) lines.push(msgTemplate.footer.trim());
+            
+            return lines.join('\n');
+        }
+
+        function sendSingleWhatsApp(voterId) {
+            const voter = processedVoters.find(v => v.id === voterId);
+            if (!voter || !voter.targetMobile) {
+                showToast('मेसेज पाठवण्यासाठी मोबाईल नंबर उपलब्ध नाही.', 'error');
+                return;
+            }
+
+            const text = buildSingleVoterMessage(voter);
+            const url = `https://wa.me/91${voter.targetMobile}?text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+
+        function sendSingleSMS(voterId) {
+            const voter = processedVoters.find(v => v.id === voterId);
+            if (!voter || !voter.targetMobile) {
+                showToast('SMS पाठवण्यासाठी मोबाईल नंबर उपलब्ध नाही.', 'error');
+                return;
+            }
+
+            // Strip markdown asterisks for plain SMS
+            const text = buildSingleVoterMessage(voter).replace(/\*/g, '');
+            const url = `sms:+91${voter.targetMobile}?body=${encodeURIComponent(text)}`;
+            window.open(url, '_self');
+        }
+
+        function sendCombinedFamilyWhatsApp(familyNo) {
+            const fam = familyGroups[familyNo];
+            if (!fam || !fam.head.mobile) {
+                showToast('कुटुंब प्रमुखाचा मोबाईल नंबर उपलब्ध नाही.', 'error');
+                return;
+            }
+
+            let lines = [];
+            if (msgTemplate.header.trim()) lines.push(msgTemplate.header.trim());
+            lines.push(`👨‍👩‍👧‍👦 *एकत्रित कुटुंब मतदार स्लिप*`);
+            lines.push(`कुटुंब क्र.: *${fam.familyNo}* | घर क्र.: *${fam.houseNo}*`);
+            lines.push(`कुटुंब प्रमुख: *${fam.head.name}*`);
+            lines.push('━━━━━━━━━━━━━━━━━━━━');
+
+            fam.members.forEach((m, idx) => {
+                lines.push(`*${idx + 1}. ${m.name}*${idx === 0 ? ' (प्रमुख)' : ''}`);
+                lines.push(`   🆔 EPIC: ${m.epicNo} | वय: ${m.age} (${m.gender})`);
+            });
+
+            lines.push('━━━━━━━━━━━━━━━━━━━━');
+            if (msgTemplate.footer.trim()) lines.push(msgTemplate.footer.trim());
+
+            const text = lines.join('\n');
+            const url = `https://wa.me/91${fam.head.mobile}?text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+
+        // ==================== EDIT MOBILE NUMBER MODAL ====================
+        function openEditMobileModal(voterId) {
+            const voter = processedVoters.find(v => v.id === voterId);
+            if (!voter) return;
+
+            editingVoterId = voterId;
+            document.getElementById('editMobileVoterName').textContent = `मतदार: ${voter.name} (कुटुंब क्र. ${voter.familyNo})`;
+            document.getElementById('editMobileFamilyNote').textContent = voter.isHead 
+                ? 'टीप: ही व्यक्ती कुटुंब प्रमुख आहे. हा नंबर सेव्ह केल्यास कुटुंबातील ज्या सदस्यांचा नंबर नाही त्यांचे मेसेजही या नंबरवर जातील.'
+                : `सध्याचे कुटुंब प्रमुख: ${voter.headName} (${voter.headMobile || 'नंबर नाही'})`;
+            
+            document.getElementById('editMobileInput').value = voter.mobile || '';
+            document.getElementById('editMobileModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('editMobileInput').focus(), 100);
+        }
+
+        function saveUpdatedMobile() {
+            const inputVal = document.getElementById('editMobileInput').value.trim();
+            const cleaned = cleanMobileNumber(inputVal);
+
+            if (inputVal !== '' && cleaned.length !== 10) {
+                showToast('कृपया अचूक १० अंकी मोबाईल क्रमांक टाका.', 'warning');
+                return;
+            }
+
+            const targetIndex = rawVoters.findIndex(v => v.id === editingVoterId);
+            if (targetIndex !== -1) {
+                rawVoters[targetIndex].mobile = cleaned;
+                saveDataToStorage();
+                processAndRenderAll();
+                closeModal('editMobileModal');
+                showToast('मोबाईल नंबर यशस्वीरित्या अपडेट झाला!', 'success');
+            }
+        }
+
+        // ==================== TEMPLATE SETTINGS MODAL ====================
+        function openTemplateModal() {
+            document.getElementById('tplHeader').value = msgTemplate.header;
+            document.getElementById('tplFooter').value = msgTemplate.footer;
+            document.getElementById('templateModal').classList.remove('hidden');
+        }
+
+        function saveMessageTemplate() {
+            msgTemplate.header = document.getElementById('tplHeader').value;
+            msgTemplate.footer = document.getElementById('tplFooter').value;
+            localStorage.setItem(TEMPLATE_KEY, JSON.stringify(msgTemplate));
+            closeModal('templateModal');
+            showToast('मेसेज सेटिंग्ज सेव्ह केल्या गेल्या!', 'success');
+        }
+
+        // ==================== DEMO DATA & SAMPLE EXCEL EXPORT ====================
+        function loadDemoData() {
+            const demoRows = [
+                { 'कुटुंब क्र.': '101', 'घर क्र.': '12/A', 'नाव': 'राजेश शंकरराव पाटील', 'वय': 52, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124501', 'जात प्रवर्ग': 'मराठा', 'मोबाईल क्र.': '9822012345' },
+                { 'कुटुंब क्र.': '101', 'घर क्र.': '12/A', 'नाव': 'सुनिता राजेश पाटील', 'वय': 47, 'लिंग': 'स्त्री', 'EPIC नंबर': 'MH/14/089/124502', 'जात प्रवर्ग': 'मराठा', 'मोबाईल क्र.': '' },
+                { 'कुटुंब क्र.': '101', 'घर क्र.': '12/A', 'नाव': 'रोहन राजेश पाटील', 'वय': 23, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124503', 'जात प्रवर्ग': 'मराठा', 'मोबाईल क्र.': '9822099887' },
+                { 'कुटुंब क्र.': '101', 'घर क्र.': '12/A', 'नाव': 'प्रियांका राजेश पाटील', 'वय': 20, 'लिंग': 'स्त्री', 'EPIC नंबर': 'MH/14/089/124504', 'जात प्रवर्ग': 'मराठा', 'मोबाईल क्र.': '' },
+
+                { 'कुटुंब क्र.': '102', 'घर क्र.': '15', 'नाव': 'अशोक महादेव कांबळे', 'वय': 60, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124610', 'जात प्रवर्ग': 'SC', 'मोबाईल क्र.': '9423055667' },
+                { 'कुटुंब क्र.': '102', 'घर क्र.': '15', 'नाव': 'मंगल अशोक कांबळे', 'वय': 54, 'लिंग': 'स्त्री', 'EPIC नंबर': 'MH/14/089/124611', 'जात प्रवर्ग': 'SC', 'मोबाईल क्र.': '' },
+                { 'कुटुंब क्र.': '102', 'घर क्र.': '15', 'नाव': 'अमित अशोक कांबळे', 'वय': 28, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124612', 'जात प्रवर्ग': 'SC', 'मोबाईल क्र.': '' },
+
+                { 'कुटुंब क्र.': '103', 'घर क्र.': '22/B', 'नाव': 'सलीम इब्राहिम शेख', 'वय': 45, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124701', 'जात प्रवर्ग': 'मुस्लिम', 'मोबाईल क्र.': '9765432109' },
+                { 'कुटुंब क्र.': '103', 'घर क्र.': '22/B', 'नाव': 'रेश्मा सलीम शेख', 'वय': 40, 'लिंग': 'स्त्री', 'EPIC नंबर': 'MH/14/089/124702', 'जात प्रवर्ग': 'मुस्लिम', 'मोबाईल क्र.': '' },
+
+                { 'कुटुंब क्र.': '104', 'घर क्र.': '30', 'नाव': 'विठ्ठल नामदेव माळी', 'वय': 65, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124801', 'जात प्रवर्ग': 'OBC', 'मोबाईल क्र.': '' },
+                { 'कुटुंब क्र.': '104', 'घर क्र.': '30', 'नाव': 'लक्ष्मी विठ्ठल माळी', 'वय': 59, 'लिंग': 'स्त्री', 'EPIC नंबर': 'MH/14/089/124802', 'जात प्रवर्ग': 'OBC', 'मोबाईल क्र.': '' }
+            ];
+
+            const autoMap = detectColumnMapping(Object.keys(demoRows[0]));
+            ingestMappedData(demoRows, autoMap);
+            showToast('नमुना डेटा लोड झाला आहे! कुटुंब प्रमुखांचे नियम तपासून पहा.', 'success');
+        }
+
+        function downloadSampleExcel() {
+            const sampleData = [
+                { 'कुटुंब क्र.': '101', 'घर क्र.': '12/A', 'नाव': 'राजेश शंकरराव पाटील', 'वय': 52, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124501', 'जात प्रवर्ग': 'मराठा', 'मोबाईल क्र.': '9822012345' },
+                { 'कुटुंब क्र.': '101', 'घर क्र.': '12/A', 'नाव': 'सुनिता राजेश पाटील', 'वय': 47, 'लिंग': 'स्त्री', 'EPIC नंबर': 'MH/14/089/124502', 'जात प्रवर्ग': 'मराठा', 'मोबाईल क्र.': '' },
+                { 'कुटुंब क्र.': '102', 'घर क्र.': '15', 'नाव': 'अशोक महादेव कांबळे', 'वय': 60, 'लिंग': 'पुरुष', 'EPIC नंबर': 'MH/14/089/124610', 'जात प्रवर्ग': 'SC', 'मोबाईल क्र.': '9423055667' }
+            ];
+
+            const ws = XLSX.utils.json_to_sheet(sampleData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'मतदार_यादी');
+            XLSX.writeFile(wb, 'Sample_Voter_List_Marathi.xlsx');
+            showToast('नमुना एक्सेल फाईल डाउनलोड होत आहे...', 'info');
+        }
+
+        function exportUpdatedExcel() {
+            if (!processedVoters.length) return;
+
+            const exportRows = processedVoters.map(v => ({
+                'कुटुंब क्र.': v.familyNo,
+                'घर क्र.': v.houseNo,
+                'नाव': v.name,
+                'भूमिका': v.isHead ? 'कुटुंब प्रमुख' : 'सदस्य',
+                'वय': v.age,
+                'लिंग': v.gender,
+                'EPIC नंबर': v.epicNo,
+                'जात प्रवर्ग': v.caste,
+                'स्वतःचा मोबाईल क्र.': v.mobile,
+                'संपर्क मोबाईल (प्रमुखानुसार)': v.targetMobile
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'सुधारित_मतदार_यादी');
+            XLSX.writeFile(wb, 'Updated_Voter_List.xlsx');
+            showToast('सुधारित एक्सेल फाईल डाउनलोड झाली!', 'success');
+        }
+
+        // ==================== CLEAR DATA & UTILITIES ====================
+        function confirmClearData() {
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function executeClearData() {
+            localStorage.removeItem(STORAGE_KEY);
+            rawVoters = [];
+            processedVoters = [];
+            familyGroups = {};
+            closeModal('confirmModal');
+            processAndRenderAll();
+            showToast('डेटा यशस्वीरित्या पुसला गेला.', 'info');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+      </html>
